@@ -19,10 +19,7 @@ const Header = () => {
           <a href="#apartments" className="text-foreground hover:text-primary transition-colors">
             Apartments
           </a>
-          <a href="#amenities" className="text-foreground hover:text-primary transition-colors">
-            Amenities
-          </a>
-          <Link 
+          <Link
             to="/locations" 
             className={`transition-colors ${
               location.pathname === '/locations' 
