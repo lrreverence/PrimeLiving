@@ -29,9 +29,16 @@ const Header = () => {
           >
             Locations
           </Link>
-          <a href="#contact" className="text-foreground hover:text-primary transition-colors">
+          <Link
+            to="/contact" 
+            className={`transition-colors ${
+              location.pathname === '/contact' 
+                ? 'text-primary' 
+                : 'text-foreground hover:text-primary'
+            }`}
+          >
             Contact
-          </a>
+          </Link>
         </nav>
 
         {/* Login/Register Button */}
