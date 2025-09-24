@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Building2, 
   Users, 
@@ -22,10 +25,29 @@ import {
 
 const CaretakerDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  const { logout, user } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
-  const handleLogout = () => {
-    // Handle logout logic
-    console.log('Logging out...');
+  const handleLogout = async () => {
+    try {
+      await logout();
+      // Clear role from localStorage
+      localStorage.removeItem('user_role');
+      // Navigate to home page
+      navigate('/');
+      toast({
+        title: "Logged out successfully",
+        description: "You have been logged out of your account.",
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast({
+        title: "Logout failed",
+        description: "There was an error logging out. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const overviewMetrics = [
@@ -129,7 +151,9 @@ const CaretakerDashboard = () => {
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            <span className="text-gray-700 font-medium">John Dela Cruz</span>
+            <span className="text-gray-700 font-medium">
+              {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
+            </span>
             <Button variant="outline" onClick={handleLogout} className="flex items-center space-x-2">
               <LogOut className="w-4 h-4" />
               <span>Logout</span>

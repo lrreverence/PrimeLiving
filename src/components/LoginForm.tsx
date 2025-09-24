@@ -20,9 +20,10 @@ type LoginFormData = z.infer<typeof loginSchema>;
 interface LoginFormProps {
   onSuccess?: () => void;
   onSwitchToSignup?: () => void;
+  selectedRole?: 'tenant' | 'caretaker' | null;
 }
 
-const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignup }) => {
+const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignup, selectedRole }) => {
   const { login, isLoading } = useAuth();
   const [error, setError] = useState<string>('');
 
@@ -36,7 +37,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignup }) =>
 
   const onSubmit = async (data: LoginFormData) => {
     setError('');
-    const result = await login(data.email, data.password);
+    const result = await login(data.email, data.password, selectedRole || undefined);
     
     if (result.success) {
       onSuccess?.();

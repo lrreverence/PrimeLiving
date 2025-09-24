@@ -26,9 +26,10 @@ type SignupFormData = z.infer<typeof signupSchema>;
 interface SignupFormProps {
   onSuccess?: () => void;
   onSwitchToLogin?: () => void;
+  selectedRole?: 'tenant' | 'caretaker' | null;
 }
 
-const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin }) => {
+const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin, selectedRole }) => {
   const { signup, isLoading } = useAuth();
   const [error, setError] = useState<string>('');
 
@@ -42,7 +43,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin }) =
 
   const onSubmit = async (data: SignupFormData) => {
     setError('');
-    const result = await signup(data.name, data.email, data.password, data.phone);
+    const result = await signup(data.name, data.email, data.password, data.phone, selectedRole || undefined);
     
     if (result.success) {
       onSuccess?.();

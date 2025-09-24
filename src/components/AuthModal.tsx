@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +10,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { X, Building2, Users, ArrowLeft } from 'lucide-react';
+import { Building2, Users, ArrowLeft } from 'lucide-react';
 import LoginForm from './LoginForm';
 import SignupForm from './SignupForm';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,6 +28,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
   const [selectedRole, setSelectedRole] = useState<'tenant' | 'caretaker' | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleAuthSuccess = () => {
     onOpenChange(false);
@@ -67,20 +69,40 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
     onOpenChange(false);
     setLoginStep('role');
     setSelectedRole(null);
-    toast({
-      title: "Welcome to PrimeLiving!",
-      description: `Welcome back, ${user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}!`,
-    });
+    
+    // Redirect based on role
+    if (selectedRole === 'caretaker') {
+      navigate('/caretaker-dashboard');
+      toast({
+        title: "Welcome to PrimeLiving!",
+        description: "Redirecting to your caretaker dashboard...",
+      });
+    } else {
+      toast({
+        title: "Welcome to PrimeLiving!",
+        description: `Welcome back, ${user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}!`,
+      });
+    }
   };
 
   const handleSignupSuccess = () => {
     onOpenChange(false);
     setSignupStep('role');
     setSelectedRole(null);
-    toast({
-      title: "Account Created!",
-      description: `Welcome to PrimeLiving, ${user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}!`,
-    });
+    
+    // Redirect based on role
+    if (selectedRole === 'caretaker') {
+      navigate('/caretaker-dashboard');
+      toast({
+        title: "Account Created!",
+        description: "Redirecting to your caretaker dashboard...",
+      });
+    } else {
+      toast({
+        title: "Account Created!",
+        description: `Welcome to PrimeLiving, ${user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}!`,
+      });
+    }
   };
 
   return (
@@ -88,30 +110,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="text-2xl font-bold">
-                  {activeTab === 'login' ? 'Welcome Back' : 
-                   activeTab === 'signup' ? 'Join PrimeLiving' : 'Portal Access'}
-                </DialogTitle>
-                <DialogDescription>
-                  {activeTab === 'login' 
-                    ? 'Sign in to access your account and find your perfect home'
-                    : activeTab === 'signup'
-                    ? 'Create your account to start your apartment search'
-                    : 'Access your branch portal with role-based features'
-                  }
-                </DialogDescription>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onOpenChange(false)}
-                className="h-8 w-8 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+            <DialogTitle className="text-2xl font-bold">
+              {activeTab === 'login' ? 'Welcome Back' : 
+               activeTab === 'signup' ? 'Join PrimeLiving' : 'Portal Access'}
+            </DialogTitle>
+            <DialogDescription>
+              {activeTab === 'login' 
+                ? 'Sign in to access your account and find your perfect home'
+                : activeTab === 'signup'
+                ? 'Create your account to start your apartment search'
+                : 'Access your branch portal with role-based features'
+              }
+            </DialogDescription>
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'login' | 'signup')}>
@@ -190,6 +200,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
                   <LoginForm 
                     onSuccess={handleLoginSuccess}
                     onSwitchToSignup={handleSwitchToSignup}
+                    selectedRole={selectedRole}
                   />
                 </div>
               )}
@@ -265,6 +276,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
                   <SignupForm 
                     onSuccess={handleSignupSuccess}
                     onSwitchToLogin={handleSwitchToLogin}
+                    selectedRole={selectedRole}
                   />
                 </div>
               )}
