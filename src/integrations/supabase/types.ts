@@ -14,7 +14,269 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      contracts: {
+        Row: {
+          contract_id: number
+          created_at: string | null
+          end_date: string
+          start_date: string
+          status: string
+          tenant_id: number
+          terms: string | null
+          unit_id: number
+          updated_at: string | null
+        }
+        Insert: {
+          contract_id?: number
+          created_at?: string | null
+          end_date: string
+          start_date: string
+          status?: string
+          tenant_id: number
+          terms?: string | null
+          unit_id: number
+          updated_at?: string | null
+        }
+        Update: {
+          contract_id?: number
+          created_at?: string | null
+          end_date?: string
+          start_date?: string
+          status?: string
+          tenant_id?: number
+          terms?: string | null
+          unit_id?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contracts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "contracts_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["unit_id"]
+          },
+        ]
+      }
+      maintenance_requests: {
+        Row: {
+          created_at: string | null
+          created_date: string | null
+          description: string
+          priority: string
+          request_id: number
+          resolved_date: string | null
+          status: string
+          tenant_id: number
+          unit_id: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_date?: string | null
+          description: string
+          priority?: string
+          request_id?: number
+          resolved_date?: string | null
+          status?: string
+          tenant_id: number
+          unit_id: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_date?: string | null
+          description?: string
+          priority?: string
+          request_id?: number
+          resolved_date?: string | null
+          status?: string
+          tenant_id?: number
+          unit_id?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["tenant_id"]
+          },
+          {
+            foreignKeyName: "maintenance_requests_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["unit_id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string | null
+          message: string
+          notification_id: number
+          notification_type: string
+          sent_date: string | null
+          status: string
+          tenant_id: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          message: string
+          notification_id?: number
+          notification_type: string
+          sent_date?: string | null
+          status?: string
+          tenant_id: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          message?: string
+          notification_id?: number
+          notification_type?: string
+          sent_date?: string | null
+          status?: string
+          tenant_id?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["tenant_id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          contract_id: number
+          created_at: string | null
+          payment_date: string
+          payment_id: number
+          payment_mode: string
+          status: string
+          tenant_id: number
+          transaction_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          contract_id: number
+          created_at?: string | null
+          payment_date: string
+          payment_id?: number
+          payment_mode: string
+          status?: string
+          tenant_id: number
+          transaction_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          contract_id?: number
+          created_at?: string | null
+          payment_date?: string
+          payment_id?: number
+          payment_mode?: string
+          status?: string
+          tenant_id?: number
+          transaction_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "payments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["tenant_id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          contact_number: string | null
+          created_at: string | null
+          email: string
+          first_name: string
+          last_name: string
+          move_in_date: string | null
+          tenant_id: number
+          updated_at: string | null
+        }
+        Insert: {
+          contact_number?: string | null
+          created_at?: string | null
+          email: string
+          first_name: string
+          last_name: string
+          move_in_date?: string | null
+          tenant_id?: number
+          updated_at?: string | null
+        }
+        Update: {
+          contact_number?: string | null
+          created_at?: string | null
+          email?: string
+          first_name?: string
+          last_name?: string
+          move_in_date?: string | null
+          tenant_id?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      units: {
+        Row: {
+          created_at: string | null
+          monthly_rent: number
+          status: string
+          unit_id: number
+          unit_number: string
+          unit_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          monthly_rent: number
+          status?: string
+          unit_id?: number
+          unit_number: string
+          unit_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          monthly_rent?: number
+          status?: string
+          unit_id?: number
+          unit_number?: string
+          unit_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
