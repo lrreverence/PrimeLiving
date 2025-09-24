@@ -65,7 +65,7 @@ const Header = () => {
               <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                 <Avatar className="h-10 w-10">
                   <AvatarFallback>
-                    {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                    {(user.user_metadata?.name || user.email?.split('@')[0] || 'User').split(' ').map(n => n[0]).join('').toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -73,7 +73,7 @@ const Header = () => {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <div className="flex items-center justify-start gap-2 p-2">
                 <div className="flex flex-col space-y-1 leading-none">
-                  <p className="font-medium">{user.name}</p>
+                  <p className="font-medium">{user.user_metadata?.name || user.email?.split('@')[0] || 'User'}</p>
                   <p className="w-[200px] truncate text-sm text-muted-foreground">
                     {user.email}
                   </p>

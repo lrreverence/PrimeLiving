@@ -26,7 +26,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ open, onOpenChange }) => {
     onOpenChange(false);
     toast({
       title: "Welcome to PrimeLiving!",
-      description: user ? `Welcome back, ${user.name}!` : "Account created successfully!",
+      description: user ? `Welcome back, ${user.user_metadata?.name || user.email?.split('@')[0] || 'User'}!` : "Account created successfully!",
     });
   };
 

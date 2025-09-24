@@ -36,12 +36,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignup }) =>
 
   const onSubmit = async (data: LoginFormData) => {
     setError('');
-    const success = await login(data.email, data.password);
+    const result = await login(data.email, data.password);
     
-    if (success) {
+    if (result.success) {
       onSuccess?.();
     } else {
-      setError('Invalid email or password. Please try again.');
+      setError(result.error || 'Login failed. Please try again.');
     }
   };
 

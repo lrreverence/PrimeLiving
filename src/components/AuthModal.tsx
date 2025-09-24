@@ -32,7 +32,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
     onOpenChange(false);
     toast({
       title: "Welcome to PrimeLiving!",
-      description: user ? `Welcome back, ${user.name}!` : "Account created successfully!",
+      description: user ? `Welcome back, ${user.user_metadata?.name || user.email?.split('@')[0] || 'User'}!` : "Account created successfully!",
     });
   };
 
@@ -69,7 +69,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
     setSelectedRole(null);
     toast({
       title: "Welcome to PrimeLiving!",
-      description: `Welcome back, ${user?.name || 'User'}!`,
+      description: `Welcome back, ${user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}!`,
     });
   };
 
@@ -79,7 +79,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
     setSelectedRole(null);
     toast({
       title: "Account Created!",
-      description: `Welcome to PrimeLiving, ${user?.name || 'User'}!`,
+      description: `Welcome to PrimeLiving, ${user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}!`,
     });
   };
 

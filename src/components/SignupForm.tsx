@@ -42,12 +42,12 @@ const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin }) =
 
   const onSubmit = async (data: SignupFormData) => {
     setError('');
-    const success = await signup(data.name, data.email, data.password, data.phone);
+    const result = await signup(data.name, data.email, data.password, data.phone);
     
-    if (success) {
+    if (result.success) {
       onSuccess?.();
     } else {
-      setError('Failed to create account. Please try again.');
+      setError(result.error || 'Failed to create account. Please try again.');
     }
   };
 
