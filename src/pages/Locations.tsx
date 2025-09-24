@@ -1,5 +1,6 @@
 import Header from "@/components/Header";
 import LocationCard from "@/components/LocationCard";
+import Contact from "@/components/Contact";
 import caintaImage from "@/assets/cainta-building.jpg";
 import sampalocImage from "@/assets/sampaloc-building.jpg";
 import cubaoImage from "@/assets/cubao-building.jpg";
@@ -72,6 +73,9 @@ const Locations = () => {
           ))}
         </div>
       </main>
+      
+      {/* Contact Section */}
+      <Contact />
     </div>
   );
 };

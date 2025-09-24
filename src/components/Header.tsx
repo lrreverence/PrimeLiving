@@ -1,9 +1,26 @@
 import { Button } from "@/components/ui/button";
-import { Building2 } from "lucide-react";
+import { Building2, User, LogOut } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { useState } from "react";
+import AuthModal from "./AuthModal";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const Header = () => {
   const location = useLocation();
+  const { user, logout } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  
+  const handleLogout = () => {
+    logout();
+  };
   
   return (
     <header className="w-full px-6 py-4 bg-background border-b border-border/50">
@@ -41,11 +58,54 @@ const Header = () => {
           </Link>
         </nav>
 
-        {/* Login/Register Button */}
-        <Button className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-6">
-          Login / Register
-        </Button>
+        {/* Authentication Section */}
+        {user ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback>
+                    {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <div className="flex items-center justify-start gap-2 p-2">
+                <div className="flex flex-col space-y-1 leading-none">
+                  <p className="font-medium">{user.name}</p>
+                  <p className="w-[200px] truncate text-sm text-muted-foreground">
+                    {user.email}
+                  </p>
+                </div>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button 
+            onClick={() => setAuthModalOpen(true)}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-6"
+          >
+            Login / Register
+          </Button>
+        )}
       </div>
+      
+      {/* Auth Modal */}
+      <AuthModal 
+        open={authModalOpen} 
+        onOpenChange={setAuthModalOpen} 
+      />
     </header>
   );
 };

@@ -1,8 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Phone, Mail, Calendar } from "lucide-react";
+import { useState } from "react";
+import PortalAccessModal from "./PortalAccessModal";
 
 const Contact = () => {
+  const [portalModalOpen, setPortalModalOpen] = useState(false);
+
   return (
     <section className="w-full px-6 py-16 bg-gray-50">
       <div className="max-w-4xl mx-auto text-center">
@@ -58,11 +62,18 @@ const Contact = () => {
           <Button 
             variant="outline" 
             className="border-gray-300 text-gray-700 hover:bg-gray-50 px-8 py-3 text-base rounded-lg"
+            onClick={() => setPortalModalOpen(true)}
           >
             Access Portal
           </Button>
         </div>
       </div>
+      
+      {/* Portal Access Modal */}
+      <PortalAccessModal 
+        open={portalModalOpen} 
+        onOpenChange={setPortalModalOpen} 
+      />
     </section>
   );
 };
