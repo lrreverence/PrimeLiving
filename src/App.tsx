@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Locations from "./pages/Locations";
 import ContactPage from "./pages/Contact";
 import CaretakerDashboard from "./pages/CaretakerDashboard";
+import TenantDashboard from "./pages/TenantDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -19,14 +20,15 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/locations" element={<Locations />} />
-            <Route path="/contact" element={<ContactPage />} />
-            <Route path="/caretaker-dashboard" element={<CaretakerDashboard />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/locations" element={<Locations />} />
+                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/caretaker-dashboard" element={<CaretakerDashboard />} />
+                <Route path="/tenant-dashboard" element={<TenantDashboard />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>

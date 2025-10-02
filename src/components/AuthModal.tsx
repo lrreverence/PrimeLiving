@@ -77,6 +77,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
         title: "Welcome to PrimeLiving!",
         description: "Redirecting to your caretaker dashboard...",
       });
+    } else if (selectedRole === 'tenant') {
+      navigate('/tenant-dashboard');
+      toast({
+        title: "Welcome to PrimeLiving!",
+        description: "Redirecting to your tenant dashboard...",
+      });
     } else {
       toast({
         title: "Welcome to PrimeLiving!",
@@ -96,6 +102,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
       toast({
         title: "Account Created!",
         description: "Redirecting to your caretaker dashboard...",
+      });
+    } else if (selectedRole === 'tenant') {
+      navigate('/tenant-dashboard');
+      toast({
+        title: "Account Created!",
+        description: "Redirecting to your tenant dashboard...",
       });
     } else {
       toast({
