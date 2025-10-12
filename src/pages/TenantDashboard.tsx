@@ -96,17 +96,6 @@ const TenantDashboard = () => {
   const [tenantData, setTenantData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editForm, setEditForm] = useState({
-    first_name: '',
-    last_name: '',
-    contact_number: '',
-    branch: '',
-    emergency_contact_name: '',
-    emergency_contact_phone: '',
-    emergency_contact_relationship: '',
-    occupation: '',
-    company: ''
-  });
   const [editLoading, setEditLoading] = useState(false);
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
   const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([]);
