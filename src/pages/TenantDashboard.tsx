@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -82,9 +83,210 @@ const TenantDashboard = () => {
     generalAnnouncements: true,
     emergencyAlerts: false // Cannot be disabled
   });
+  const [tenantData, setTenantData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    first_name: '',
+    last_name: '',
+    contact_number: '',
+    branch: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    emergency_contact_relationship: '',
+    occupation: '',
+    company: ''
+  });
+  const [editLoading, setEditLoading] = useState(false);
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([]);
+  const [maintenanceStats, setMaintenanceStats] = useState({
+    total: 0,
+    pending: 0,
+    inProgress: 0,
+    completed: 0
+  });
+  const [maintenanceLoadingData, setMaintenanceLoadingData] = useState(false);
   const { logout, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Fetch tenant data from Supabase
+  const fetchTenantData = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching tenant data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load tenant information.",
+          variant: "destructive",
+        });
+      } else {
+        setTenantData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching tenant data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load tenant information.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTenantData();
+  }, [user]);
+
+  // Fetch maintenance requests from Supabase
+  const fetchMaintenanceRequests = async () => {
+    if (!tenantData || !user) return;
+    
+    try {
+      setMaintenanceLoadingData(true);
+      
+      // Get tenant_id from the tenant data
+      const { data: tenantRecord, error: tenantError } = await supabase
+        .from('tenants')
+        .select('tenant_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (tenantError || !tenantRecord) {
+        console.error('Error fetching tenant record:', tenantError);
+        return;
+      }
+
+      // Fetch maintenance requests for this tenant
+      const { data: requests, error: requestsError } = await supabase
+        .from('maintenance_requests')
+        .select('*')
+        .eq('tenant_id', tenantRecord.tenant_id)
+        .order('created_date', { ascending: false });
+
+      if (requestsError) {
+        console.error('Error fetching maintenance requests:', requestsError);
+        toast({
+          title: "Error",
+          description: "Failed to load maintenance requests.",
+          variant: "destructive",
+        });
+      } else {
+        setMaintenanceRequests(requests || []);
+        
+        // Calculate stats
+        const stats = {
+          total: requests?.length || 0,
+          pending: requests?.filter(r => r.status === 'pending').length || 0,
+          inProgress: requests?.filter(r => r.status === 'in_progress').length || 0,
+          completed: requests?.filter(r => r.status === 'completed').length || 0
+        };
+        setMaintenanceStats(stats);
+      }
+    } catch (error) {
+      console.error('Error fetching maintenance requests:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load maintenance requests.",
+        variant: "destructive",
+      });
+    } finally {
+      setMaintenanceLoadingData(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tenantData) {
+      fetchMaintenanceRequests();
+    }
+  }, [tenantData]);
+
+  // Handle edit modal opening
+  const handleEditClick = () => {
+    if (tenantData) {
+      setEditForm({
+        first_name: tenantData.first_name || '',
+        last_name: tenantData.last_name || '',
+        contact_number: tenantData.contact_number || '',
+        branch: tenantData.branch || '',
+        emergency_contact_name: tenantData.emergency_contact_name || '',
+        emergency_contact_phone: tenantData.emergency_contact_phone || '',
+        emergency_contact_relationship: tenantData.emergency_contact_relationship || '',
+        occupation: tenantData.occupation || '',
+        company: tenantData.company || ''
+      });
+      setEditModalOpen(true);
+    }
+  };
+
+  // Handle form input changes
+  const handleEditFormChange = (field: string, value: string) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Handle form submission
+  const handleEditSubmit = async () => {
+    if (!tenantData || !user) return;
+
+    try {
+      setEditLoading(true);
+      const { error } = await supabase
+        .from('tenants')
+        .update({
+          first_name: editForm.first_name,
+          last_name: editForm.last_name,
+          contact_number: editForm.contact_number,
+          branch: editForm.branch,
+          emergency_contact_name: editForm.emergency_contact_name,
+          emergency_contact_phone: editForm.emergency_contact_phone,
+          emergency_contact_relationship: editForm.emergency_contact_relationship,
+          occupation: editForm.occupation,
+          company: editForm.company,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error updating tenant data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update profile. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Profile updated successfully!",
+        });
+        setEditModalOpen(false);
+        // Refresh tenant data
+        await fetchTenantData();
+      }
+    } catch (error) {
+      console.error('Error updating tenant data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -285,7 +487,7 @@ const TenantDashboard = () => {
     }));
   };
 
-  const handleSubmitMaintenanceRequest = () => {
+  const handleSubmitMaintenanceRequest = async () => {
     if (!maintenanceForm.category || !maintenanceForm.priority || !maintenanceForm.title || !maintenanceForm.description) {
       toast({
         title: "Missing Information",
@@ -295,12 +497,97 @@ const TenantDashboard = () => {
       return;
     }
 
+    if (!tenantData || !user) {
+      toast({
+        title: "Error",
+        description: "Unable to submit request. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setMaintenanceLoading(true);
+      
+      // Get tenant_id from the tenant data
+      const { data: tenantRecord, error: tenantError } = await supabase
+        .from('tenants')
+        .select('tenant_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (tenantError) {
+        console.error('Tenant lookup error:', tenantError);
+        throw new Error(`Failed to find tenant record: ${tenantError.message}`);
+      }
+      
+      if (!tenantRecord) {
+        throw new Error('No tenant record found. Please contact support.');
+      }
+
+      // Get a unit_id (for now, we'll use a default or first available unit)
+      // In a real app, you'd get this from the tenant's current contract
+      let unitId = 1; // Default unit_id
+      
+      const { data: unitData, error: unitError } = await supabase
+        .from('units')
+        .select('unit_id')
+        .eq('status', 'available')
+        .limit(1);
+
+      if (unitError || !unitData || unitData.length === 0) {
+        console.warn('No available unit found, using default unit_id');
+        // Try to get any unit if no available units
+        const { data: anyUnit } = await supabase
+          .from('units')
+          .select('unit_id')
+          .limit(1);
+        
+        if (anyUnit && anyUnit.length > 0) {
+          unitId = anyUnit[0].unit_id;
+        }
+      } else {
+        unitId = unitData[0].unit_id;
+      }
+
+      // Insert maintenance request into database
+      const { error: insertError } = await supabase
+        .from('maintenance_requests')
+        .insert({
+          tenant_id: tenantRecord.tenant_id,
+          unit_id: unitId,
+          description: maintenanceForm.description,
+          priority: maintenanceForm.priority,
+          status: 'pending',
+          created_date: new Date().toISOString(),
+          // Note: We're not handling photos in this basic implementation
+          // In a real app, you'd upload photos to storage first
+        });
+
+      if (insertError) {
+        console.error('Database insert error:', insertError);
+        throw new Error(`Failed to create maintenance request: ${insertError.message}`);
+      }
+
     toast({
       title: "Request Submitted",
       description: "Your maintenance request has been submitted successfully.",
     });
 
     handleCloseMaintenanceModal();
+      
+      // Refresh maintenance requests data
+      await fetchMaintenanceRequests();
+    } catch (error) {
+      console.error('Error submitting maintenance request:', error);
+      toast({
+        title: "Submission Failed",
+        description: "There was an error submitting your request. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setMaintenanceLoading(false);
+    }
   };
 
   const handleMarkAllRead = () => {
@@ -338,12 +625,14 @@ const TenantDashboard = () => {
             <Building2 className="w-8 h-8 text-blue-600" />
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Tenant Portal</h1>
-              <p className="text-gray-600">Cainta Rizal Branch • Unit A-101</p>
+              <p className="text-gray-600">
+                {loading ? 'Loading...' : tenantData ? `${tenantData.branch || 'Unknown Branch'} • Unit A-101` : 'No tenant data'}
+              </p>
             </div>
           </div>
           <div className="flex items-center space-x-4">
             <span className="text-gray-700 font-medium">
-              {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
+              {loading ? 'Loading...' : tenantData ? `${tenantData.first_name} ${tenantData.last_name}`.trim() : user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
             </span>
             <Button variant="outline" onClick={handleLogout} className="flex items-center space-x-2">
               <LogOut className="w-4 h-4" />
@@ -477,7 +766,9 @@ const TenantDashboard = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Branch:</span>
-                        <span className="font-medium">Cainta Rizal Branch</span>
+                        <span className="font-medium">
+                          {loading ? 'Loading...' : tenantData?.branch || 'Unknown Branch'}
+                        </span>
                       </div>
                     </div>
                   </CardContent>
@@ -527,7 +818,13 @@ const TenantDashboard = () => {
                         <CardTitle>Personal Information</CardTitle>
                         <p className="text-sm text-gray-600 mt-1">Your contact details and personal data</p>
                       </div>
-                      <Button variant="outline" size="sm" className="flex items-center space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex items-center space-x-2"
+                        onClick={handleEditClick}
+                        disabled={loading || !tenantData}
+                      >
                         <Edit className="w-4 h-4" />
                         <span>Edit</span>
                       </Button>
@@ -539,7 +836,9 @@ const TenantDashboard = () => {
                         <User className="w-5 h-5 text-gray-400" />
                         <div>
                           <p className="text-sm text-gray-600">Full Name</p>
-                          <p className="font-medium text-gray-900">Ana Garcia</p>
+                          <p className="font-medium text-gray-900">
+                            {loading ? 'Loading...' : tenantData ? `${tenantData.first_name} ${tenantData.last_name}`.trim() : 'No data available'}
+                          </p>
                         </div>
                       </div>
 
@@ -547,7 +846,9 @@ const TenantDashboard = () => {
                         <Mail className="w-5 h-5 text-gray-400" />
                         <div>
                           <p className="text-sm text-gray-600">Email Address</p>
-                          <p className="font-medium text-gray-900">ana.garcia@email.com</p>
+                          <p className="font-medium text-gray-900">
+                            {loading ? 'Loading...' : tenantData?.email || user?.email || 'No email available'}
+                          </p>
                         </div>
                       </div>
 
@@ -555,7 +856,9 @@ const TenantDashboard = () => {
                         <Phone className="w-5 h-5 text-gray-400" />
                         <div>
                           <p className="text-sm text-gray-600">Phone Number</p>
-                          <p className="font-medium text-gray-900">+63-912-345-6789</p>
+                          <p className="font-medium text-gray-900">
+                            {loading ? 'Loading...' : tenantData?.contact_number || 'No phone number available'}
+                          </p>
                         </div>
                       </div>
 
@@ -598,7 +901,41 @@ const TenantDashboard = () => {
                         <Building2 className="w-5 h-5 text-gray-400" />
                         <div>
                           <p className="text-sm text-gray-600">Branch Location</p>
-                          <p className="font-medium text-gray-900">Cainta Rizal Branch</p>
+                          <p className="font-medium text-gray-900">
+                            {loading ? 'Loading...' : tenantData?.branch || 'Unknown Branch'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <UserCheck className="w-5 h-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm text-gray-600">Occupation</p>
+                          <p className="font-medium text-gray-900">
+                            {loading ? 'Loading...' : tenantData?.occupation || 'Not specified'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <Building2 className="w-5 h-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm text-gray-600">Company</p>
+                          <p className="font-medium text-gray-900">
+                            {loading ? 'Loading...' : tenantData?.company || 'Not specified'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <Phone className="w-5 h-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm text-gray-600">Emergency Contact</p>
+                          <p className="font-medium text-gray-900">
+                            {loading ? 'Loading...' : tenantData?.emergency_contact_name ? 
+                              `${tenantData.emergency_contact_name} (${tenantData.emergency_contact_relationship || 'Contact'})` : 
+                              'Not specified'}
+                          </p>
                         </div>
                       </div>
 
@@ -736,8 +1073,8 @@ const TenantDashboard = () => {
                           <Users className="w-6 h-6 text-orange-600" />
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900 mb-1">Emergency Contacts</h4>
-                          <p className="text-sm text-gray-600 mb-3">Important contact numbers for emergencies and maintenance</p>
+                          <h4 className="font-semibold text-gray-900 mb-1">Philippine Emergency Contacts</h4>
+                          <p className="text-sm text-gray-600 mb-3">Important contact numbers for emergencies and maintenance in the Philippines</p>
                           <div className="flex items-center justify-between">
                             <Badge variant="secondary" className="bg-gray-100 text-gray-700">PDF</Badge>
                             <Button size="sm" className="flex items-center space-x-2">
@@ -1373,7 +1710,9 @@ const TenantDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600">Total Requests</p>
-                        <p className="text-3xl font-bold text-gray-900">3</p>
+                        <p className="text-3xl font-bold text-gray-900">
+                          {maintenanceLoadingData ? '...' : maintenanceStats.total}
+                        </p>
                       </div>
                       <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                         <Wrench className="w-6 h-6 text-blue-600" />
@@ -1387,7 +1726,9 @@ const TenantDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600">Pending</p>
-                        <p className="text-3xl font-bold text-gray-900">1</p>
+                        <p className="text-3xl font-bold text-gray-900">
+                          {maintenanceLoadingData ? '...' : maintenanceStats.pending}
+                        </p>
                       </div>
                       <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
                         <Clock className="w-6 h-6 text-yellow-600" />
@@ -1401,7 +1742,9 @@ const TenantDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600">In Progress</p>
-                        <p className="text-3xl font-bold text-gray-900">1</p>
+                        <p className="text-3xl font-bold text-gray-900">
+                          {maintenanceLoadingData ? '...' : maintenanceStats.inProgress}
+                        </p>
                       </div>
                       <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                         <Wrench className="w-6 h-6 text-blue-600" />
@@ -1415,7 +1758,9 @@ const TenantDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600">Completed</p>
-                        <p className="text-3xl font-bold text-gray-900">1</p>
+                        <p className="text-3xl font-bold text-gray-900">
+                          {maintenanceLoadingData ? '...' : maintenanceStats.completed}
+                        </p>
                       </div>
                       <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                         <CheckCircle className="w-6 h-6 text-green-600" />
@@ -1430,133 +1775,123 @@ const TenantDashboard = () => {
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Your Maintenance Requests</h3>
                 <p className="text-gray-600 mb-6">Track the status of your submitted requests</p>
 
-                <div className="space-y-4">
-                  {/* Request 1 - Completed */}
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-4">
-                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <Droplets className="w-6 h-6 text-blue-600" />
+                {maintenanceLoadingData ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                      <p className="text-gray-600">Loading maintenance requests...</p>
                           </div>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-3 mb-2">
-                              <h4 className="text-lg font-semibold text-gray-900">Kitchen sink leak</h4>
-                              <Badge className="bg-red-100 text-red-800">high</Badge>
-                              <Badge className="bg-green-800 text-white">completed</Badge>
                             </div>
-                            <p className="text-gray-600 mb-4">
-                              Water is leaking from under the kitchen sink. The leak seems to be getting worse and is causing water damage to the cabinet.
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                              <div>
-                                <span className="text-gray-500">Submitted:</span>
-                                <span className="ml-2 font-medium">2024-08-20</span>
+                ) : maintenanceRequests.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Wrench className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Maintenance Requests</h3>
+                    <p className="text-gray-600 mb-4">You haven't submitted any maintenance requests yet.</p>
+                    <Button 
+                      onClick={handleNewRequest}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Submit Your First Request
+                    </Button>
                               </div>
-                              <div>
-                                <span className="text-gray-500">Scheduled:</span>
-                                <span className="ml-2 font-medium">2024-08-22</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Completed:</span>
-                                <span className="ml-2 font-medium">2024-08-25</span>
-                              </div>
-                            </div>
-                            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                              <p className="text-sm text-gray-600">
-                                <span className="font-medium">Category:</span> Plumbing Issue
-                              </p>
-                              <p className="text-sm text-gray-600 mt-1">
-                                <span className="font-medium">Technician Notes:</span> Fixed the loose pipe connection and replaced worn-out washers. Issue resolved.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center">
-                          <CheckCircle className="w-6 h-6 text-green-600" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    {maintenanceRequests.map((request) => {
+                      const getStatusColor = (status: string) => {
+                        switch (status) {
+                          case 'completed': return 'bg-green-800 text-white';
+                          case 'in_progress': return 'bg-blue-100 text-blue-800';
+                          case 'pending': return 'bg-gray-100 text-gray-800';
+                          default: return 'bg-gray-100 text-gray-800';
+                        }
+                      };
 
-                  {/* Request 2 - In Progress */}
-                  <Card>
+                      const getPriorityColor = (priority: string) => {
+                        switch (priority) {
+                          case 'urgent': return 'bg-red-100 text-red-800';
+                          case 'high': return 'bg-red-100 text-red-800';
+                          case 'medium': return 'bg-yellow-100 text-yellow-800';
+                          case 'low': return 'bg-green-100 text-green-800';
+                          default: return 'bg-gray-100 text-gray-800';
+                        }
+                      };
+
+                      const getStatusIcon = (status: string) => {
+                        switch (status) {
+                          case 'completed': return <CheckCircle className="w-6 h-6 text-green-600" />;
+                          case 'in_progress': return <Wrench className="w-6 h-6 text-blue-600" />;
+                          case 'pending': return <Clock className="w-6 h-6 text-gray-500" />;
+                          default: return <Clock className="w-6 h-6 text-gray-500" />;
+                        }
+                      };
+
+                      const formatDate = (dateString: string) => {
+                        return new Date(dateString).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        });
+                      };
+
+                      return (
+                        <Card key={request.request_id}>
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex items-start space-x-4">
-                          <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                            <Thermometer className="w-6 h-6 text-orange-600" />
+                                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                                  <Wrench className="w-6 h-6 text-blue-600" />
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center space-x-3 mb-2">
-                              <h4 className="text-lg font-semibold text-gray-900">AC not cooling properly</h4>
-                              <Badge className="bg-yellow-100 text-yellow-800">medium</Badge>
-                              <Badge className="bg-blue-100 text-blue-800">in progress</Badge>
+                                    <h4 className="text-lg font-semibold text-gray-900">
+                                      {request.description?.substring(0, 50)}...
+                                    </h4>
+                                    <Badge className={getPriorityColor(request.priority)}>
+                                      {request.priority}
+                                    </Badge>
+                                    <Badge className={getStatusColor(request.status)}>
+                                      {request.status}
+                                    </Badge>
                             </div>
                             <p className="text-gray-600 mb-4">
-                              The air conditioning unit is running but not cooling the room effectively. Room temperature stays warm even after hours of operation.
+                                    {request.description}
                             </p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                               <div>
                                 <span className="text-gray-500">Submitted:</span>
-                                <span className="ml-2 font-medium">2024-08-28</span>
+                                      <span className="ml-2 font-medium">
+                                        {formatDate(request.created_date)}
+                                      </span>
                               </div>
+                                    {request.resolved_date && (
                               <div>
-                                <span className="text-gray-500">Scheduled:</span>
-                                <span className="ml-2 font-medium">2024-08-30</span>
+                                        <span className="text-gray-500">Resolved:</span>
+                                        <span className="ml-2 font-medium">
+                                          {formatDate(request.resolved_date)}
+                                        </span>
                               </div>
+                                    )}
                             </div>
                             <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                               <p className="text-sm text-gray-600">
-                                <span className="font-medium">Category:</span> HVAC Issue
-                              </p>
+                                      <span className="font-medium">Priority:</span> {request.priority}
+                                    </p>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                      <span className="font-medium">Status:</span> {request.status}
+                                    </p>
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center">
-                          <Wrench className="w-6 h-6 text-blue-600" />
+                                {getStatusIcon(request.status)}
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-
-                  {/* Request 3 - Pending */}
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-4">
-                          <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                            <Zap className="w-6 h-6 text-yellow-600" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-3 mb-2">
-                              <h4 className="text-lg font-semibold text-gray-900">Bedroom light switch intermittent</h4>
-                              <Badge className="bg-green-100 text-green-800">low</Badge>
-                              <Badge className="bg-gray-100 text-gray-800">pending</Badge>
-                            </div>
-                            <p className="text-gray-600 mb-4">
-                              The light switch in the bedroom sometimes doesn't work. Need to press it multiple times to turn on the light.
-                            </p>
-                            <div className="grid grid-cols-1 gap-4 text-sm">
-                              <div>
-                                <span className="text-gray-500">Submitted:</span>
-                                <span className="ml-2 font-medium">2024-08-29</span>
-                              </div>
-                            </div>
-                            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                              <p className="text-sm text-gray-600">
-                                <span className="font-medium">Category:</span> Electrical Issue
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center">
-                          <Clock className="w-6 h-6 text-gray-500" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      );
+                    })}
                 </div>
+                )}
               </div>
 
               {/* Emergency Contacts and Tips */}
@@ -1564,7 +1899,7 @@ const TenantDashboard = () => {
                 {/* Emergency Contacts */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-xl font-semibold text-gray-900">Emergency Contacts</CardTitle>
+                    <CardTitle className="text-xl font-semibold text-gray-900">Philippine Emergency Contacts</CardTitle>
                     <p className="text-sm text-gray-600">For urgent issues that need immediate attention</p>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1574,8 +1909,8 @@ const TenantDashboard = () => {
                       </div>
                       <div>
                         <h4 className="font-semibold text-gray-900">Emergency Hotline</h4>
-                        <p className="text-lg font-bold text-red-600">(02) 8123-4567</p>
-                        <p className="text-sm text-gray-600">24/7 for gas leaks, flooding, electrical emergencies</p>
+                        <p className="text-lg font-bold text-red-600">911</p>
+                        <p className="text-sm text-gray-600">24/7 for all emergencies (fire, medical, police)</p>
                       </div>
                     </div>
 
@@ -1589,14 +1924,47 @@ const TenantDashboard = () => {
                         <p className="text-sm text-gray-600">Mon-Fri 8AM-5PM for general maintenance</p>
                       </div>
                     </div>
+
+                    <div className="flex items-center space-x-4 p-4 bg-green-50 rounded-lg">
+                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                        <Phone className="w-6 h-6 text-green-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">Fire Department</h4>
+                        <p className="text-lg font-bold text-green-600">117</p>
+                        <p className="text-sm text-gray-600">Fire emergencies and rescue operations</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-4 p-4 bg-purple-50 rounded-lg">
+                      <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <User className="w-6 h-6 text-purple-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">Police</h4>
+                        <p className="text-lg font-bold text-purple-600">117</p>
+                        <p className="text-sm text-gray-600">Crime reporting and police assistance</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-4 p-4 bg-orange-50 rounded-lg">
+                      <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <Phone className="w-6 h-6 text-orange-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">Medical Emergency</h4>
+                        <p className="text-lg font-bold text-orange-600">117</p>
+                        <p className="text-sm text-gray-600">Ambulance and medical emergencies</p>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 
                 {/* Maintenance Tips */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-xl font-semibold text-gray-900">Maintenance Tips</CardTitle>
-                    <p className="text-sm text-gray-600">Prevent common issues with these simple tips</p>
+                    <CardTitle className="text-xl font-semibold text-gray-900">Philippine Maintenance Tips</CardTitle>
+                    <p className="text-sm text-gray-600">Prevent common issues with these simple tips for Philippine living</p>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1608,9 +1976,10 @@ const TenantDashboard = () => {
                         </div>
                         <ul className="space-y-2 text-sm text-gray-600">
                           <li>• Don't flush anything other than toilet paper</li>
-                          <li>• Report small leaks immediately</li>
-                          <li>• Clean sink drains regularly</li>
-                          <li>• Don't pour grease down the drain</li>
+                          <li>• Report small leaks immediately (common in rainy season)</li>
+                          <li>• Clean sink drains regularly to prevent clogging</li>
+                          <li>• Don't pour cooking oil down the drain</li>
+                          <li>• Check for water pressure issues during peak hours</li>
                         </ul>
                       </div>
 
@@ -1621,10 +1990,12 @@ const TenantDashboard = () => {
                           <h4 className="font-semibold text-gray-900">Electrical</h4>
                         </div>
                         <ul className="space-y-2 text-sm text-gray-600">
-                          <li>• Don't overload power outlets</li>
+                          <li>• Don't overload power outlets (220V system)</li>
                           <li>• Replace burnt out bulbs promptly</li>
                           <li>• Keep electrical appliances away from water</li>
                           <li>• Report flickering lights or sparks immediately</li>
+                          <li>• Use surge protectors during typhoon season</li>
+                          <li>• Check for loose connections after power outages</li>
                         </ul>
                       </div>
                     </div>
@@ -2013,15 +2384,15 @@ const TenantDashboard = () => {
 
       {/* Maintenance Request Modal */}
       <Dialog open={maintenanceModalOpen} onOpenChange={setMaintenanceModalOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 p-6 pb-4">
             <DialogTitle className="text-2xl font-bold">Submit Maintenance Request</DialogTitle>
             <DialogDescription>
               Describe the issue you're experiencing and we'll address it promptly
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6">
+          <div className="flex-1 overflow-y-auto space-y-6 px-6">
             {/* Category and Priority */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -2124,19 +2495,160 @@ const TenantDashboard = () => {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex justify-end space-x-4 pt-4">
+          </div>
+
+          {/* Action Buttons - Fixed at bottom */}
+          <div className="flex-shrink-0 border-t pt-4 mt-4 px-6 pb-6">
+            <div className="flex justify-end space-x-4">
               <Button
                 variant="outline"
                 onClick={handleCloseMaintenanceModal}
+                disabled={maintenanceLoading}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSubmitMaintenanceRequest}
+                disabled={maintenanceLoading}
                 className="bg-gray-800 text-white hover:bg-gray-700"
               >
-                Submit Request
+                {maintenanceLoading ? 'Submitting...' : 'Submit Request'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Profile Modal */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Profile</DialogTitle>
+            <DialogDescription>
+              Update your personal information and contact details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="first_name">First Name</Label>
+                <Input
+                  id="first_name"
+                  value={editForm.first_name}
+                  onChange={(e) => handleEditFormChange('first_name', e.target.value)}
+                  placeholder="Enter first name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="last_name">Last Name</Label>
+                <Input
+                  id="last_name"
+                  value={editForm.last_name}
+                  onChange={(e) => handleEditFormChange('last_name', e.target.value)}
+                  placeholder="Enter last name"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="contact_number">Phone Number</Label>
+              <Input
+                id="contact_number"
+                value={editForm.contact_number}
+                onChange={(e) => handleEditFormChange('contact_number', e.target.value)}
+                placeholder="+63 917 123 4567"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="branch">Branch</Label>
+              <Select 
+                value={editForm.branch} 
+                onValueChange={(value) => handleEditFormChange('branch', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cainta-rizal">Cainta Rizal Branch</SelectItem>
+                  <SelectItem value="sampaloc-manila">Sampaloc Manila Branch</SelectItem>
+                  <SelectItem value="cubao-qc">Cubao QC Branch</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Emergency Contact Section */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-lg font-medium">Emergency Contact (Philippines)</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="emergency_contact_name">Contact Name</Label>
+                  <Input
+                    id="emergency_contact_name"
+                    value={editForm.emergency_contact_name}
+                    onChange={(e) => handleEditFormChange('emergency_contact_name', e.target.value)}
+                    placeholder="Enter emergency contact name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="emergency_contact_phone">Contact Phone</Label>
+                  <Input
+                    id="emergency_contact_phone"
+                    value={editForm.emergency_contact_phone}
+                    onChange={(e) => handleEditFormChange('emergency_contact_phone', e.target.value)}
+                    placeholder="+63 917 123 4567"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="emergency_contact_relationship">Relationship</Label>
+                <Input
+                  id="emergency_contact_relationship"
+                  value={editForm.emergency_contact_relationship}
+                  onChange={(e) => handleEditFormChange('emergency_contact_relationship', e.target.value)}
+                  placeholder="e.g., Spouse, Parent, Sibling"
+                />
+              </div>
+            </div>
+
+            {/* Occupation Section */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-lg font-medium">Occupation</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="occupation">Job Title</Label>
+                  <Input
+                    id="occupation"
+                    value={editForm.occupation}
+                    onChange={(e) => handleEditFormChange('occupation', e.target.value)}
+                    placeholder="Enter your job title"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company">Company</Label>
+                  <Input
+                    id="company"
+                    value={editForm.company}
+                    onChange={(e) => handleEditFormChange('company', e.target.value)}
+                    placeholder="Enter company name"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setEditModalOpen(false)}
+                disabled={editLoading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleEditSubmit}
+                disabled={editLoading}
+              >
+                {editLoading ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
           </div>
