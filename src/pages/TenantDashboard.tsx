@@ -93,7 +93,6 @@ const TenantDashboard = () => {
     generalAnnouncements: true,
     emergencyAlerts: false // Cannot be disabled
   });
-  const [tenantData, setTenantData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
