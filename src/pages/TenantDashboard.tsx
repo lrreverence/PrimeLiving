@@ -412,6 +412,58 @@ const TenantDashboard = () => {
     }
   };
 
+  const handleEditFormChange = (field: string, value: string) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleEditSubmit = async () => {
+    if (!user || !tenantData) return;
+    
+    try {
+      setEditLoading(true);
+      const { error } = await supabase
+        .from('tenants')
+        .update({
+          first_name: editForm.first_name,
+          last_name: editForm.last_name,
+          contact_number: editForm.contact_number,
+          branch: editForm.branch,
+          emergency_contact_name: editForm.emergency_contact_name,
+          emergency_contact_phone: editForm.emergency_contact_phone,
+          emergency_contact_relationship: editForm.emergency_contact_relationship,
+          occupation: editForm.occupation,
+          company: editForm.company,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully.",
+      });
+
+      setEditModalOpen(false);
+      // Refresh tenant data
+      await fetchTenantData();
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Update Failed",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const handleMarkAllRead = () => {
     toast({
       title: "All Notifications Marked Read",
