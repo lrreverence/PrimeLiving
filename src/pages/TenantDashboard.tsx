@@ -700,6 +700,10 @@ const TenantDashboard = () => {
                 </div>
               ) : !tenantData ? (
                 <Card>
+                  <CardContent className="p-12 text-center">
+                    <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Profile Found</h3>
+                    <p className="text-gray-600">Your tenant profile has not been set up yet. Please contact the administrator.</p>
                   </CardContent>
                 </Card>
               ) : (
