@@ -60,6 +60,16 @@ import {
 const TenantDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [paymentYear, setPaymentYear] = useState('2024');
+  const [tenantData, setTenantData] = useState<any>(null);
+  const [contractData, setContractData] = useState<any>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({
+    first_name: '',
+    last_name: '',
+    contact_number: '',
+    email: ''
+  });
   const [paymentStatus, setPaymentStatus] = useState('All Status');
   const [paymentFor, setPaymentFor] = useState('Monthly Rent');
   const [paymentMethod, setPaymentMethod] = useState('GCash');
@@ -111,6 +121,7 @@ const TenantDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+<<<<<<< HEAD
   // Fetch tenant data from Supabase
   const fetchTenantData = async () => {
     if (!user) return;
@@ -287,6 +298,72 @@ const TenantDashboard = () => {
       setEditLoading(false);
     }
   };
+=======
+  // Fetch tenant data
+  useEffect(() => {
+    const fetchTenantData = async () => {
+      if (!user?.email) return;
+
+      setIsLoadingProfile(true);
+      try {
+        // Fetch tenant data
+        const { data: tenant, error: tenantError } = await supabase
+          .from('tenants')
+          .select('*')
+          .eq('email', user.email)
+          .single();
+
+        if (tenantError) {
+          console.error('Error fetching tenant:', tenantError);
+          toast({
+            title: "Error loading profile",
+            description: "Could not load your profile data. Please try again.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        setTenantData(tenant);
+        setEditForm({
+          first_name: tenant.first_name || '',
+          last_name: tenant.last_name || '',
+          contact_number: tenant.contact_number || '',
+          email: tenant.email || ''
+        });
+
+        // Fetch contract data if tenant exists
+        if (tenant) {
+          const { data: contract, error: contractError } = await supabase
+            .from('contracts')
+            .select(`
+              *,
+              units (
+                unit_number,
+                monthly_rent,
+                unit_type
+              )
+            `)
+            .eq('tenant_id', tenant.tenant_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (contractError) {
+            console.error('Error fetching contract:', contractError);
+          } else {
+            setContractData(contract);
+          }
+        }
+      } catch (error) {
+        console.error('Unexpected error:', error);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    fetchTenantData();
+  }, [user, toast]);
+>>>>>>> 96d097066c346739ded542e740af2f5a6aa4bf01
 
   const handleLogout = async () => {
     try {
@@ -616,6 +693,57 @@ const TenantDashboard = () => {
     });
   };
 
+  const handleEditProfile = () => {
+    setIsEditingProfile(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingProfile(false);
+    if (tenantData) {
+      setEditForm({
+        first_name: tenantData.first_name || '',
+        last_name: tenantData.last_name || '',
+        contact_number: tenantData.contact_number || '',
+        email: tenantData.email || ''
+      });
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!tenantData) return;
+
+    try {
+      const { error } = await supabase
+        .from('tenants')
+        .update({
+          first_name: editForm.first_name,
+          last_name: editForm.last_name,
+          contact_number: editForm.contact_number
+        })
+        .eq('tenant_id', tenantData.tenant_id);
+
+      if (error) throw error;
+
+      setTenantData({
+        ...tenantData,
+        ...editForm
+      });
+
+      setIsEditingProfile(false);
+      toast({
+        title: "Profile Updated",
+        description: "Your profile information has been updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Update Failed",
+        description: "Could not update your profile. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -809,9 +937,13 @@ const TenantDashboard = () => {
                 <p className="text-gray-600 mt-1">Manage your personal information and view contract details</p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Personal Information */}
+              {isLoadingProfile ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+                </div>
+              ) : !tenantData ? (
                 <Card>
+<<<<<<< HEAD
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div>
@@ -878,25 +1010,93 @@ const TenantDashboard = () => {
                         </div>
                       </div>
                     </div>
+=======
+                  <CardContent className="p-12 text-center">
+                    <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Profile Found</h3>
+                    <p className="text-gray-600">Your tenant profile has not been set up yet. Please contact the administrator.</p>
+>>>>>>> 96d097066c346739ded542e740af2f5a6aa4bf01
                   </CardContent>
                 </Card>
-
-                {/* Rental Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Rental Information</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">Your unit and lease details</p>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-3">
-                        <Home className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Unit Number</p>
-                          <p className="font-medium text-gray-900">A-101</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Personal Information */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle>Personal Information</CardTitle>
+                            <p className="text-sm text-gray-600 mt-1">Your contact details and personal data</p>
+                          </div>
+                          {!isEditingProfile ? (
+                            <Button variant="outline" size="sm" className="flex items-center space-x-2" onClick={handleEditProfile}>
+                              <Edit className="w-4 h-4" />
+                              <span>Edit</span>
+                            </Button>
+                          ) : (
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                                Cancel
+                              </Button>
+                              <Button size="sm" onClick={handleSaveProfile}>
+                                Save
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                      </div>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {isEditingProfile ? (
+                          <div className="space-y-4">
+                            <div>
+                              <Label htmlFor="first_name">First Name</Label>
+                              <Input
+                                id="first_name"
+                                value={editForm.first_name}
+                                onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="last_name">Last Name</Label>
+                              <Input
+                                id="last_name"
+                                value={editForm.last_name}
+                                onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="contact_number">Phone Number</Label>
+                              <Input
+                                id="contact_number"
+                                value={editForm.contact_number}
+                                onChange={(e) => setEditForm({ ...editForm, contact_number: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="email">Email Address</Label>
+                              <Input
+                                id="email"
+                                value={editForm.email}
+                                disabled
+                                className="bg-gray-50"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div className="flex items-center space-x-3">
+                              <User className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Full Name</p>
+                                <p className="font-medium text-gray-900">
+                                  {tenantData.first_name} {tenantData.last_name}
+                                </p>
+                              </div>
+                            </div>
 
+<<<<<<< HEAD
                       <div className="flex items-center space-x-3">
                         <Building2 className="w-5 h-5 text-gray-400" />
                         <div>
@@ -938,60 +1138,118 @@ const TenantDashboard = () => {
                           </p>
                         </div>
                       </div>
+=======
+                            <div className="flex items-center space-x-3">
+                              <Mail className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Email Address</p>
+                                <p className="font-medium text-gray-900">{tenantData.email}</p>
+                              </div>
+                            </div>
+>>>>>>> 96d097066c346739ded542e740af2f5a6aa4bf01
 
-                      <div className="flex items-center space-x-3">
-                        <DollarSign className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Monthly Rent</p>
-                          <p className="font-medium text-gray-900">₱15,000</p>
-                        </div>
-                      </div>
+                            <div className="flex items-center space-x-3">
+                              <Phone className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Phone Number</p>
+                                <p className="font-medium text-gray-900">
+                                  {tenantData.contact_number || 'Not provided'}
+                                </p>
+                              </div>
+                            </div>
 
-                      <div className="flex items-center space-x-3">
-                        <Calendar className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Payment Due Date</p>
-                          <p className="font-medium text-gray-900">15th of each month</p>
-                        </div>
-                      </div>
+                            {tenantData.move_in_date && (
+                              <div className="flex items-center space-x-3">
+                                <Calendar className="w-5 h-5 text-gray-400" />
+                                <div>
+                                  <p className="text-sm text-gray-600">Move-in Date</p>
+                                  <p className="font-medium text-gray-900">
+                                    {new Date(tenantData.move_in_date).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
 
-                      <div className="flex items-center space-x-3">
-                        <Calendar className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Contract Start</p>
-                          <p className="font-medium text-gray-900">2024-01-15</p>
-                        </div>
-                      </div>
+                    {/* Rental Information */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Rental Information</CardTitle>
+                        <p className="text-sm text-gray-600 mt-1">Your unit and lease details</p>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {contractData ? (
+                          <div className="space-y-4">
+                            <div className="flex items-center space-x-3">
+                              <Home className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Unit Number</p>
+                                <p className="font-medium text-gray-900">{contractData.units?.unit_number || 'N/A'}</p>
+                              </div>
+                            </div>
 
-                      <div className="flex items-center space-x-3">
-                        <Calendar className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Contract End</p>
-                          <p className="font-medium text-gray-900">2025-01-14</p>
-                        </div>
-                      </div>
+                            <div className="flex items-center space-x-3">
+                              <Building2 className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Unit Type</p>
+                                <p className="font-medium text-gray-900">{contractData.units?.unit_type || 'N/A'}</p>
+                              </div>
+                            </div>
 
-                      <div className="flex items-center space-x-3">
-                        <DollarSign className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Security Deposit</p>
-                          <p className="font-medium text-gray-900">₱30,000</p>
-                        </div>
-                      </div>
-                    </div>
+                            <div className="flex items-center space-x-3">
+                              <DollarSign className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Monthly Rent</p>
+                                <p className="font-medium text-gray-900">
+                                  ₱{contractData.units?.monthly_rent?.toLocaleString() || 'N/A'}
+                                </p>
+                              </div>
+                            </div>
 
-                    {/* Contract Progress */}
-                    <div className="pt-4 border-t border-gray-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-600">Contract Progress</span>
-                        <span className="text-sm font-bold text-blue-600">163%</span>
-                      </div>
-                      <Progress value={163} className="h-2 mb-2" />
-                      <p className="text-xs text-gray-500">-229 days remaining</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                            <div className="flex items-center space-x-3">
+                              <Calendar className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Contract Start</p>
+                                <p className="font-medium text-gray-900">
+                                  {new Date(contractData.start_date).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center space-x-3">
+                              <Calendar className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Contract End</p>
+                                <p className="font-medium text-gray-900">
+                                  {new Date(contractData.end_date).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center space-x-3">
+                              <CheckCircle className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Contract Status</p>
+                                <Badge className={contractData.status === 'active' ? 'bg-green-600' : 'bg-gray-600'}>
+                                  {contractData.status}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-600">No active contract found</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
 
               {/* Contract Documents Section */}
               <div>
