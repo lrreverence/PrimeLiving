@@ -109,6 +109,90 @@ const TenantDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Fetch tenant data from Supabase
+  const fetchTenantData = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching tenant data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load tenant data. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (data) {
+        setTenantData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching tenant data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load tenant data. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch maintenance requests
+  const fetchMaintenanceRequests = async () => {
+    if (!tenantData) return;
+    
+    try {
+      setMaintenanceLoadingData(true);
+      const { data: requests, error: requestsError } = await supabase
+        .from('maintenance_requests')
+        .select('*')
+        .eq('tenant_id', tenantData.tenant_id)
+        .order('created_date', { ascending: false });
+
+      if (requestsError) {
+        console.error('Error fetching maintenance requests:', requestsError);
+        return;
+      }
+
+      setMaintenanceRequests(requests || []);
+
+      // Calculate stats
+      const stats = {
+        total: requests?.length || 0,
+        pending: requests?.filter(r => r.status === 'pending').length || 0,
+        inProgress: requests?.filter(r => r.status === 'in_progress').length || 0,
+        completed: requests?.filter(r => r.status === 'completed').length || 0,
+      };
+      setMaintenanceStats(stats);
+    } catch (error) {
+      console.error('Error fetching maintenance requests:', error);
+    } finally {
+      setMaintenanceLoadingData(false);
+    }
+  };
+
+  // Load tenant data when component mounts
+  useEffect(() => {
+    if (user) {
+      fetchTenantData();
+    }
+  }, [user]);
+
+  // Load maintenance requests when tenant data is available
+  useEffect(() => {
+    if (tenantData) {
+      fetchMaintenanceRequests();
+    }
+  }, [tenantData]);
 
   const handleLogout = async () => {
     try {
