@@ -69,7 +69,13 @@ const TenantDashboard = () => {
     first_name: '',
     last_name: '',
     contact_number: '',
-    email: ''
+    email: '',
+    branch: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    emergency_contact_relationship: '',
+    occupation: '',
+    company: ''
   });
   const [paymentStatus, setPaymentStatus] = useState('All Status');
   const [paymentFor, setPaymentFor] = useState('Monthly Rent');
@@ -645,7 +651,13 @@ const TenantDashboard = () => {
         first_name: tenantData.first_name || '',
         last_name: tenantData.last_name || '',
         contact_number: tenantData.contact_number || '',
-        email: tenantData.email || ''
+        email: tenantData.email || '',
+        branch: tenantData.branch || '',
+        emergency_contact_name: tenantData.emergency_contact_name || '',
+        emergency_contact_phone: tenantData.emergency_contact_phone || '',
+        emergency_contact_relationship: tenantData.emergency_contact_relationship || '',
+        occupation: tenantData.occupation || '',
+        company: tenantData.company || ''
       });
     }
   };
@@ -946,7 +958,21 @@ const TenantDashboard = () => {
                         <p className="text-sm text-gray-600 mt-1">Your contact details and personal data</p>
                       </div>
                           {!isEditingProfile ? (
-                            <Button variant="outline" size="sm" className="flex items-center space-x-2" onClick={handleEditProfile}>
+                            <Button variant="outline" size="sm" className="flex items-center space-x-2" onClick={() => {
+                              setEditForm({
+                                first_name: tenantData?.first_name || '',
+                                last_name: tenantData?.last_name || '',
+                                contact_number: tenantData?.contact_number || '',
+                                email: tenantData?.email || '',
+                                branch: tenantData?.branch || '',
+                                emergency_contact_name: tenantData?.emergency_contact_name || '',
+                                emergency_contact_phone: tenantData?.emergency_contact_phone || '',
+                                emergency_contact_relationship: tenantData?.emergency_contact_relationship || '',
+                                occupation: tenantData?.occupation || '',
+                                company: tenantData?.company || ''
+                              });
+                              setEditModalOpen(true);
+                            }}>
                         <Edit className="w-4 h-4" />
                         <span>Edit</span>
                             </Button>
