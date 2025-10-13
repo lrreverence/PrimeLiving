@@ -18,11 +18,6 @@ const signupSchema = z.object({
   confirmPassword: z.string(),
   phone: z.string().optional(),
   branch: z.string().min(1, 'Please select a branch'),
-  emergency_contact_name: z.string().optional(),
-  emergency_contact_phone: z.string().optional(),
-  emergency_contact_relationship: z.string().optional(),
-  occupation: z.string().optional(),
-  company: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -57,12 +52,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin, sel
       data.password, 
       data.phone, 
       selectedRole || undefined, 
-      data.branch,
-      data.emergency_contact_name,
-      data.emergency_contact_phone,
-      data.emergency_contact_relationship,
-      data.occupation,
-      data.company
+      data.branch
     );
     
     if (result.success) {
@@ -165,72 +155,6 @@ const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin, sel
               )}
             </div>
 
-            {/* Emergency Contact Section */}
-            <div className="space-y-4 border-t pt-4">
-              <h3 className="text-lg font-medium">Emergency Contact (Philippines) - Optional</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="emergency_contact_name">Contact Name</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                    <Input
-                      id="emergency_contact_name"
-                      type="text"
-                      placeholder="Enter emergency contact name"
-                      className="pl-10"
-                      {...register('emergency_contact_name')}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="emergency_contact_phone">Contact Phone</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                    <Input
-                      id="emergency_contact_phone"
-                      type="tel"
-                      placeholder="+63 917 123 4567 (Philippine format)"
-                      className="pl-10"
-                      {...register('emergency_contact_phone')}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="emergency_contact_relationship">Relationship</Label>
-                <Input
-                  id="emergency_contact_relationship"
-                  type="text"
-                  placeholder="e.g., Spouse, Parent, Sibling"
-                  {...register('emergency_contact_relationship')}
-                />
-              </div>
-            </div>
-
-            {/* Occupation Section */}
-            <div className="space-y-4 border-t pt-4">
-              <h3 className="text-lg font-medium">Occupation (Optional)</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="occupation">Job Title</Label>
-                  <Input
-                    id="occupation"
-                    type="text"
-                    placeholder="Enter your job title"
-                    {...register('occupation')}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="company">Company</Label>
-                  <Input
-                    id="company"
-                    type="text"
-                    placeholder="Enter company name"
-                    {...register('company')}
-                  />
-                </div>
-              </div>
-            </div>
 
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>

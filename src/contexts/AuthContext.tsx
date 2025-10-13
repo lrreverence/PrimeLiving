@@ -78,7 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signup = async (name: string, email: string, password: string, phone?: string, role?: string, branch?: string, emergency_contact_name?: string, emergency_contact_phone?: string, emergency_contact_relationship?: string, occupation?: string, company?: string): Promise<{ success: boolean; error?: string }> => {
+  const signup = async (name: string, email: string, password: string, phone?: string, role?: string, branch?: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
       const redirectUrl = `${window.location.origin}/`;
@@ -93,11 +93,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             phone,
             role,
             branch,
-            emergency_contact_name,
-            emergency_contact_phone,
-            emergency_contact_relationship,
-            occupation,
-            company,
           }
         }
       });
