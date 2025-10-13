@@ -124,9 +124,17 @@ const TenantDashboard = () => {
 
       if (error) {
         console.error('Error fetching tenant data:', error);
+        
+        // If no tenant record exists, create one
+        if (error.code === 'PGRST116') {
+          console.log('No tenant record found, creating one...');
+          await createTenantRecord();
+          return;
+        }
+        
         toast({
           title: "Error",
-          description: "Failed to load tenant data. Please try again.",
+          description: `Failed to load tenant data: ${error.message}`,
           variant: "destructive"
         });
         return;
@@ -144,6 +152,53 @@ const TenantDashboard = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Create tenant record for existing users
+  const createTenantRecord = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('tenants')
+        .insert({
+          user_id: user.id,
+          first_name: user.user_metadata?.name?.split(' ')[0] || '',
+          last_name: user.user_metadata?.name?.split(' ').slice(1).join(' ') || '',
+          email: user.email || '',
+          contact_number: user.user_metadata?.phone || '',
+          branch: user.user_metadata?.branch || 'sampaloc-manila',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating tenant record:', error);
+        toast({
+          title: "Error",
+          description: `Failed to create tenant record: ${error.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (data) {
+        setTenantData(data);
+        toast({
+          title: "Success",
+          description: "Tenant profile created successfully!",
+        });
+      }
+    } catch (error) {
+      console.error('Error creating tenant record:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create tenant record. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -474,7 +529,7 @@ const TenantDashboard = () => {
       if (insertError) {
         console.error('Database insert error:', insertError);
         throw new Error(`Failed to create maintenance request: ${insertError.message}`);
-      }
+    }
 
     toast({
       title: "Request Submitted",
@@ -659,6 +714,42 @@ const TenantDashboard = () => {
         </div>
       )}
 
+      {/* Debug Section - Remove this after fixing */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <Card className="bg-yellow-50 border-yellow-200">
+            <CardContent className="p-4">
+              <h3 className="font-semibold text-yellow-800 mb-2">Debug Information</h3>
+              <div className="text-sm text-yellow-700 space-y-1">
+                <p><strong>User ID:</strong> {user?.id || 'No user'}</p>
+                <p><strong>User Email:</strong> {user?.email || 'No email'}</p>
+                <p><strong>Email Confirmed:</strong> {user?.email_confirmed_at ? 'Yes' : 'No'}</p>
+                <p><strong>Loading:</strong> {loading ? 'Yes' : 'No'}</p>
+                <p><strong>Tenant Data:</strong> {tenantData ? 'Found' : 'Not found'}</p>
+                <p><strong>Tenant ID:</strong> {tenantData?.tenant_id || 'N/A'}</p>
+                <p><strong>Branch:</strong> {tenantData?.branch || 'N/A'}</p>
+                <Button 
+                  onClick={fetchTenantData} 
+                  size="sm" 
+                  className="mt-2"
+                  disabled={loading}
+                >
+                  {loading ? 'Loading...' : 'Retry Fetch'}
+                </Button>
+                <Button 
+                  onClick={createTenantRecord} 
+                  size="sm" 
+                  className="mt-2 ml-2"
+                  variant="outline"
+                >
+                  Create Tenant Record
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Navigation */}
@@ -840,19 +931,19 @@ const TenantDashboard = () => {
                 </Card>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Personal Information */}
-                    <Card>
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <CardTitle>Personal Information</CardTitle>
-                            <p className="text-sm text-gray-600 mt-1">Your contact details and personal data</p>
-                          </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Personal Information */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Personal Information</CardTitle>
+                        <p className="text-sm text-gray-600 mt-1">Your contact details and personal data</p>
+                      </div>
                           {!isEditingProfile ? (
                             <Button variant="outline" size="sm" className="flex items-center space-x-2" onClick={handleEditProfile}>
-                              <Edit className="w-4 h-4" />
-                              <span>Edit</span>
+                        <Edit className="w-4 h-4" />
+                        <span>Edit</span>
                             </Button>
                           ) : (
                             <div className="flex gap-2">
@@ -861,22 +952,22 @@ const TenantDashboard = () => {
                               </Button>
                               <Button size="sm" onClick={handleSaveProfile}>
                                 Save
-                              </Button>
+                      </Button>
                             </div>
                           )}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-6">
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
                         {isEditingProfile ? (
-                          <div className="space-y-4">
-                            <div>
+                    <div className="space-y-4">
+                        <div>
                               <Label htmlFor="first_name">First Name</Label>
                               <Input
                                 id="first_name"
                                 value={editForm.first_name}
                                 onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
                               />
-                            </div>
+                        </div>
                             <div>
                               <Label htmlFor="last_name">Last Name</Label>
                               <Input
@@ -884,15 +975,15 @@ const TenantDashboard = () => {
                                 value={editForm.last_name}
                                 onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
                               />
-                            </div>
-                            <div>
+                      </div>
+                        <div>
                               <Label htmlFor="contact_number">Phone Number</Label>
                               <Input
                                 id="contact_number"
                                 value={editForm.contact_number}
                                 onChange={(e) => setEditForm({ ...editForm, contact_number: e.target.value })}
                               />
-                            </div>
+                        </div>
                             <div>
                               <Label htmlFor="email">Email Address</Label>
                               <Input
@@ -902,121 +993,121 @@ const TenantDashboard = () => {
                                 className="bg-gray-50"
                               />
                               <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
-                            </div>
+                      </div>
                           </div>
                         ) : (
                           <div className="space-y-4">
-                            <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-3">
                               <User className="w-5 h-5 text-gray-400" />
-                              <div>
+                        <div>
                                 <p className="text-sm text-gray-600">Full Name</p>
                                 <p className="font-medium text-gray-900">
                                   {tenantData.first_name} {tenantData.last_name}
                                 </p>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
 
 
-                            <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-3">
                               <Phone className="w-5 h-5 text-gray-400" />
-                              <div>
+                        <div>
                                 <p className="text-sm text-gray-600">Phone Number</p>
                                 <p className="font-medium text-gray-900">
                                   {tenantData.contact_number || 'Not provided'}
                                 </p>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
 
                             {tenantData.move_in_date && (
-                              <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-3">
                                 <Calendar className="w-5 h-5 text-gray-400" />
-                                <div>
+                        <div>
                                   <p className="text-sm text-gray-600">Move-in Date</p>
                                   <p className="font-medium text-gray-900">
                                     {new Date(tenantData.move_in_date).toLocaleDateString()}
                                   </p>
-                                </div>
-                              </div>
+                        </div>
+                      </div>
                             )}
-                          </div>
+                    </div>
                         )}
-                      </CardContent>
-                    </Card>
+                  </CardContent>
+                </Card>
 
-                    {/* Rental Information */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Rental Information</CardTitle>
-                        <p className="text-sm text-gray-600 mt-1">Your unit and lease details</p>
-                      </CardHeader>
-                      <CardContent className="space-y-6">
+                {/* Rental Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Rental Information</CardTitle>
+                    <p className="text-sm text-gray-600 mt-1">Your unit and lease details</p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
                         {contractData ? (
-                          <div className="space-y-4">
-                            <div className="flex items-center space-x-3">
-                              <Home className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="text-sm text-gray-600">Unit Number</p>
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3">
+                        <Home className="w-5 h-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm text-gray-600">Unit Number</p>
                                 <p className="font-medium text-gray-900">{contractData.units?.unit_number || 'N/A'}</p>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
 
-                            <div className="flex items-center space-x-3">
-                              <Building2 className="w-5 h-5 text-gray-400" />
-                              <div>
+                      <div className="flex items-center space-x-3">
+                        <Building2 className="w-5 h-5 text-gray-400" />
+                        <div>
                                 <p className="text-sm text-gray-600">Unit Type</p>
                                 <p className="font-medium text-gray-900">{contractData.units?.unit_type || 'N/A'}</p>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
 
-                            <div className="flex items-center space-x-3">
-                              <DollarSign className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="text-sm text-gray-600">Monthly Rent</p>
+                      <div className="flex items-center space-x-3">
+                        <DollarSign className="w-5 h-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm text-gray-600">Monthly Rent</p>
                                 <p className="font-medium text-gray-900">
                                   ₱{contractData.units?.monthly_rent?.toLocaleString() || 'N/A'}
                                 </p>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
 
-                            <div className="flex items-center space-x-3">
-                              <Calendar className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="text-sm text-gray-600">Contract Start</p>
+                      <div className="flex items-center space-x-3">
+                        <Calendar className="w-5 h-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm text-gray-600">Contract Start</p>
                                 <p className="font-medium text-gray-900">
                                   {new Date(contractData.start_date).toLocaleDateString()}
                                 </p>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
 
-                            <div className="flex items-center space-x-3">
-                              <Calendar className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="text-sm text-gray-600">Contract End</p>
+                      <div className="flex items-center space-x-3">
+                        <Calendar className="w-5 h-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm text-gray-600">Contract End</p>
                                 <p className="font-medium text-gray-900">
                                   {new Date(contractData.end_date).toLocaleDateString()}
                                 </p>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
 
-                            <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-3">
                               <CheckCircle className="w-5 h-5 text-gray-400" />
-                              <div>
+                        <div>
                                 <p className="text-sm text-gray-600">Contract Status</p>
                                 <Badge className={contractData.status === 'active' ? 'bg-green-600' : 'bg-gray-600'}>
                                   {contractData.status}
                                 </Badge>
-                              </div>
-                            </div>
-                          </div>
+                        </div>
+                      </div>
+                    </div>
                         ) : (
                           <div className="text-center py-8">
                             <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                             <p className="text-gray-600">No active contract found</p>
-                          </div>
+                      </div>
                         )}
-                      </CardContent>
-                    </Card>
-                  </div>
+                  </CardContent>
+                </Card>
+              </div>
                 </>
               )}
 
