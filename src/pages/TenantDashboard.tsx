@@ -1001,11 +1001,11 @@ const TenantDashboard = () => {
                       </div>
                           </div>
                         ) : (
-                          <div className="space-y-4">
+                    <div className="space-y-4">
                       <div className="flex items-center space-x-3">
-                              <User className="w-5 h-5 text-gray-400" />
+                        <User className="w-5 h-5 text-gray-400" />
                         <div>
-                                <p className="text-sm text-gray-600">Full Name</p>
+                          <p className="text-sm text-gray-600">Full Name</p>
                                 <p className="font-medium text-gray-900">
                                   {tenantData.first_name} {tenantData.last_name}
                                 </p>
@@ -1019,6 +1019,26 @@ const TenantDashboard = () => {
                                 <p className="text-sm text-gray-600">Phone Number</p>
                                 <p className="font-medium text-gray-900">
                                   {tenantData.contact_number || 'Not provided'}
+                                </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <Mail className="w-5 h-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm text-gray-600">Email Address</p>
+                                <p className="font-medium text-gray-900">
+                                  {tenantData.email || 'Not provided'}
+                                </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                              <Building2 className="w-5 h-5 text-gray-400" />
+                        <div>
+                                <p className="text-sm text-gray-600">Branch</p>
+                                <p className="font-medium text-gray-900">
+                                  {tenantData.branch ? tenantData.branch.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Not provided'}
                                 </p>
                         </div>
                       </div>
@@ -1038,6 +1058,78 @@ const TenantDashboard = () => {
                         )}
                   </CardContent>
                 </Card>
+
+                {/* Emergency Contact Information */}
+                {(tenantData.emergency_contact_name || tenantData.emergency_contact_phone || tenantData.emergency_contact_relationship) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Emergency Contact (Philippines)</CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">Your emergency contact information</p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {tenantData.emergency_contact_name && (
+                      <div className="flex items-center space-x-3">
+                        <User className="w-5 h-5 text-gray-400" />
+                        <div>
+                            <p className="text-sm text-gray-600">Contact Name</p>
+                            <p className="font-medium text-gray-900">{tenantData.emergency_contact_name}</p>
+                        </div>
+                      </div>
+                      )}
+
+                      {tenantData.emergency_contact_phone && (
+                        <div className="flex items-center space-x-3">
+                          <Phone className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="text-sm text-gray-600">Contact Phone</p>
+                            <p className="font-medium text-gray-900">{tenantData.emergency_contact_phone}</p>
+                    </div>
+                        </div>
+                      )}
+
+                      {tenantData.emergency_contact_relationship && (
+                        <div className="flex items-center space-x-3">
+                          <Users className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="text-sm text-gray-600">Relationship</p>
+                            <p className="font-medium text-gray-900">{tenantData.emergency_contact_relationship}</p>
+                          </div>
+                        </div>
+                      )}
+                  </CardContent>
+                </Card>
+                )}
+
+                {/* Occupation Information */}
+                {(tenantData.occupation || tenantData.company) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Occupation</CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">Your professional information</p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {tenantData.occupation && (
+                        <div className="flex items-center space-x-3">
+                          <UserCheck className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="text-sm text-gray-600">Job Title</p>
+                            <p className="font-medium text-gray-900">{tenantData.occupation}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {tenantData.company && (
+                        <div className="flex items-center space-x-3">
+                          <Building2 className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="text-sm text-gray-600">Company</p>
+                            <p className="font-medium text-gray-900">{tenantData.company}</p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Rental Information */}
                 <Card>
