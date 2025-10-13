@@ -96,25 +96,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
     setSignupStep('role');
     setSelectedRole(null);
     
-    // Redirect based on role
-    if (selectedRole === 'caretaker') {
-      navigate('/caretaker-dashboard');
-      toast({
-        title: "Account Created!",
-        description: "Redirecting to your caretaker dashboard...",
-      });
-    } else if (selectedRole === 'tenant') {
-      navigate('/tenant-dashboard');
-      toast({
-        title: "Account Created!",
-        description: "Redirecting to your tenant dashboard...",
-      });
-    } else {
-      toast({
-        title: "Account Created!",
-        description: `Welcome to PrimeLiving, ${user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}!`,
-      });
-    }
+    // Redirect to email confirmation page
+    navigate('/email-confirmation');
+    toast({
+      title: "Account Created!",
+      description: "Please check your email to confirm your account.",
+    });
   };
 
   return (

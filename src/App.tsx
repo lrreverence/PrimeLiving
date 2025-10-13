@@ -9,6 +9,7 @@ import Locations from "./pages/Locations";
 import ContactPage from "./pages/Contact";
 import CaretakerDashboard from "./pages/CaretakerDashboard";
 import TenantDashboard from "./pages/TenantDashboard";
+import EmailConfirmation from "./pages/EmailConfirmation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
                 <Route path="/contact" element={<ContactPage />} />
                 <Route path="/caretaker-dashboard" element={<CaretakerDashboard />} />
                 <Route path="/tenant-dashboard" element={<TenantDashboard />} />
+                <Route path="/email-confirmation" element={<EmailConfirmation />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
