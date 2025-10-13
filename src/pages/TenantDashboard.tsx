@@ -142,6 +142,7 @@ const TenantDashboard = () => {
 
       if (data) {
         setTenantData(data);
+        setIsLoadingProfile(false);
       }
     } catch (error) {
       console.error('Error fetching tenant data:', error);
@@ -150,6 +151,7 @@ const TenantDashboard = () => {
         description: "Failed to load tenant data. Please try again.",
         variant: "destructive"
       });
+      setIsLoadingProfile(false);
     } finally {
       setLoading(false);
     }
@@ -187,6 +189,7 @@ const TenantDashboard = () => {
 
       if (data) {
         setTenantData(data);
+        setIsLoadingProfile(false);
         toast({
           title: "Success",
           description: "Tenant profile created successfully!",
@@ -194,6 +197,7 @@ const TenantDashboard = () => {
       }
     } catch (error) {
       console.error('Error creating tenant record:', error);
+      setIsLoadingProfile(false);
       toast({
         title: "Error",
         description: "Failed to create tenant record. Please try again.",
@@ -725,6 +729,7 @@ const TenantDashboard = () => {
                 <p><strong>User Email:</strong> {user?.email || 'No email'}</p>
                 <p><strong>Email Confirmed:</strong> {user?.email_confirmed_at ? 'Yes' : 'No'}</p>
                 <p><strong>Loading:</strong> {loading ? 'Yes' : 'No'}</p>
+                <p><strong>Profile Loading:</strong> {isLoadingProfile ? 'Yes' : 'No'}</p>
                 <p><strong>Tenant Data:</strong> {tenantData ? 'Found' : 'Not found'}</p>
                 <p><strong>Tenant ID:</strong> {tenantData?.tenant_id || 'N/A'}</p>
                 <p><strong>Branch:</strong> {tenantData?.branch || 'N/A'}</p>
