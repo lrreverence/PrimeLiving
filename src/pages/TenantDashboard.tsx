@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import EmailConfirmationBanner from '@/components/EmailConfirmationBanner';
 import { 
   Building2, 
   User, 
@@ -650,6 +651,13 @@ const TenantDashboard = () => {
           </div>
         </div>
       </header>
+
+      {/* Email Confirmation Banner */}
+      {user && !user.email_confirmed_at && (
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <EmailConfirmationBanner userEmail={user.email || ''} />
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

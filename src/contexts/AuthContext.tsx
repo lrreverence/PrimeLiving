@@ -7,8 +7,9 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   login: (email: string, password: string, role?: string) => Promise<{ success: boolean; error?: string }>;
-  signup: (name: string, email: string, password: string, phone?: string, role?: string, branch?: string, emergency_contact_name?: string, emergency_contact_phone?: string, emergency_contact_relationship?: string, occupation?: string, company?: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (name: string, email: string, password: string, phone?: string, role?: string, branch?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
+  resendConfirmation: (email: string) => Promise<{ success: boolean; error?: string }>;
   isLoading: boolean;
 }
 
@@ -122,12 +123,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const resendConfirmation = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`
+        }
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: 'Failed to resend confirmation email' };
+    }
+  };
+
   const value: AuthContextType = {
     user,
     session,
     login,
     signup,
     logout,
+    resendConfirmation,
     isLoading
   };
 
