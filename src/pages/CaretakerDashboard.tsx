@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -63,9 +64,54 @@ const CaretakerDashboard = () => {
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState('');
   const [maintenanceFilter, setMaintenanceFilter] = useState('all');
+  const [landlordData, setLandlordData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { logout, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Fetch landlord data from Supabase
+  const fetchLandlordData = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('landlords')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching landlord data:', error);
+        // If no landlord record exists, we'll show a default
+        setLandlordData(null);
+      } else {
+        setLandlordData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching landlord data:', error);
+      setLandlordData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load landlord data when component mounts
+  useEffect(() => {
+    if (user) {
+      fetchLandlordData();
+    }
+  }, [user]);
+
+  // Helper function to format branch name
+  const formatBranchName = (branch: string) => {
+    if (!branch) return 'Unknown Branch';
+    return branch
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ') + ' Branch';
+  };
 
   const handleLogout = async () => {
     try {
@@ -486,7 +532,9 @@ const CaretakerDashboard = () => {
             <Building2 className="w-8 h-8 text-blue-600" />
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Caretaker Dashboard</h1>
-              <p className="text-gray-600">Cainta Rizal Branch</p>
+              <p className="text-gray-600">
+                {isLoading ? 'Loading...' : formatBranchName(landlordData?.branch || 'sampaloc-manila')}
+              </p>
             </div>
           </div>
           <div className="flex items-center space-x-4">
@@ -517,6 +565,34 @@ const CaretakerDashboard = () => {
 
       {/* Main Content */}
       <main className="p-6">
+        {/* Debug Section - Remove this after fixing */}
+        {process.env.NODE_ENV === 'development' && (
+          <Card className="bg-yellow-50 border-yellow-200 mb-6">
+            <CardContent className="p-4">
+              <h3 className="font-semibold text-yellow-800 mb-2">Debug Information</h3>
+              <div className="text-sm text-yellow-700 space-y-1">
+                <p><strong>User ID:</strong> {user?.id || 'No user'}</p>
+                <p><strong>User Email:</strong> {user?.email || 'No email'}</p>
+                <p><strong>User Role:</strong> {user?.user_metadata?.role || 'No role'}</p>
+                <p><strong>UI Role:</strong> {user?.user_metadata?.uiRole || 'No UI role'}</p>
+                <p><strong>Loading:</strong> {isLoading ? 'Yes' : 'No'}</p>
+                <p><strong>Landlord Data:</strong> {landlordData ? 'Found' : 'Not found'}</p>
+                <p><strong>Landlord ID:</strong> {landlordData?.landlord_id || 'N/A'}</p>
+                <p><strong>Branch from DB:</strong> {landlordData?.branch || 'N/A'}</p>
+                <p><strong>Formatted Branch:</strong> {formatBranchName(landlordData?.branch || 'sampaloc-manila')}</p>
+                <Button 
+                  onClick={fetchLandlordData} 
+                  size="sm" 
+                  className="mt-2"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Loading...' : 'Retry Fetch'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsContent value="overview" className="space-y-6">
             {/* Overview Metrics */}

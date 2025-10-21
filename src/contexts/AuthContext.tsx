@@ -65,7 +65,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { success: false, error: error.message };
       }
 
-      // Store role in localStorage for redirection
+      // Store UI role in localStorage for redirection
       if (role) {
         localStorage.setItem('user_role', role);
       }
@@ -84,6 +84,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const redirectUrl = `${window.location.origin}/`;
       
+      // Map caretaker role to landlord for database storage
+      const dbRole = role === 'caretaker' ? 'landlord' : role;
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -92,7 +95,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           data: {
             name,
             phone,
-            role,
+            role: dbRole, // Store as 'landlord' in database
+            uiRole: role, // Keep original UI role for reference
             branch,
           }
         }
@@ -102,7 +106,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { success: false, error: error.message };
       }
 
-      // Store role in localStorage for redirection
+      // Store UI role in localStorage for redirection
       if (role) {
         localStorage.setItem('user_role', role);
       }

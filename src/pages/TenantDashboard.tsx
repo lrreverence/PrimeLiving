@@ -2,6 +2,57 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+
+// Type definitions - made flexible to handle schema variations
+interface TenantData {
+  tenant_id?: number;
+  user_id?: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  contact_number?: string;
+  branch?: string;
+  move_in_date?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relationship?: string;
+  occupation?: string;
+  company?: string;
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: any; // Allow additional properties
+}
+
+interface UnitData {
+  unit_id?: number;
+  unit_number?: string;
+  unit_type?: string;
+  monthly_rent?: number;
+  [key: string]: any;
+}
+
+interface ContractData {
+  contract_id?: number;
+  tenant_id?: number;
+  unit_id?: number;
+  start_date?: string;
+  end_date?: string;
+  status?: string;
+  units?: UnitData;
+  [key: string]: any;
+}
+
+interface NotificationData {
+  notification_id: number;
+  tenant_id: number;
+  notification_type: string;
+  message: string;
+  sent_date: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  [key: string]: any;
+}
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -15,13 +66,13 @@ import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import EmailConfirmationBanner from '@/components/EmailConfirmationBanner';
-import { 
-  Building2, 
-  User, 
-  CreditCard, 
-  QrCode, 
-  Wrench, 
-  Bell, 
+import {
+  Building2,
+  User,
+  CreditCard,
+  QrCode,
+  Wrench,
+  Bell,
   LogOut,
   Calendar,
   DollarSign,
@@ -61,8 +112,8 @@ import {
 const TenantDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [paymentYear, setPaymentYear] = useState('2024');
-  const [tenantData, setTenantData] = useState<any>(null);
-  const [contractData, setContractData] = useState<any>(null);
+  const [tenantData, setTenantData] = useState<TenantData | null>(null);
+  const [contractData, setContractData] = useState<ContractData | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -112,6 +163,8 @@ const TenantDashboard = () => {
     completed: 0
   });
   const [maintenanceLoadingData, setMaintenanceLoadingData] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const { logout, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -119,25 +172,28 @@ const TenantDashboard = () => {
   // Fetch tenant data from Supabase
   const fetchTenantData = async () => {
     if (!user) return;
-    
+
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      // @ts-ignore - Supabase type inference issue
+      const response = await supabase
         .from('tenants')
         .select('*')
         .eq('user_id', user.id)
         .single();
 
+      const { data, error } = response as { data: TenantData | null; error: any };
+
       if (error) {
         console.error('Error fetching tenant data:', error);
-        
+
         // If no tenant record exists, create one
         if (error.code === 'PGRST116') {
           console.log('No tenant record found, creating one...');
           await createTenantRecord();
           return;
         }
-        
+
         toast({
           title: "Error",
           description: `Failed to load tenant data: ${error.message}`,
@@ -149,6 +205,8 @@ const TenantDashboard = () => {
       if (data) {
         setTenantData(data);
         setIsLoadingProfile(false);
+        // Fetch contract data after tenant data is loaded
+        await fetchContractData(data.tenant_id);
       }
     } catch (error) {
       console.error('Error fetching tenant data:', error);
@@ -163,10 +221,37 @@ const TenantDashboard = () => {
     }
   };
 
+  // Fetch contract data with unit information
+  const fetchContractData = async (tenantId: number) => {
+    try {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select(`
+          *,
+          units (*)
+        `)
+        .eq('tenant_id', tenantId)
+        .eq('status', 'active')
+        .single() as { data: ContractData | null; error: any };
+
+      if (error) {
+        console.error('Error fetching contract data:', error);
+        // Don't show error toast for missing contract as it's optional
+        return;
+      }
+
+      if (data) {
+        setContractData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching contract data:', error);
+    }
+  };
+
   // Create tenant record for existing users
   const createTenantRecord = async () => {
     if (!user) return;
-    
+
     try {
       const { data, error } = await supabase
         .from('tenants')
@@ -181,7 +266,7 @@ const TenantDashboard = () => {
           updated_at: new Date().toISOString()
         })
         .select()
-        .single();
+        .single() as { data: TenantData | null; error: any };
 
       if (error) {
         console.error('Error creating tenant record:', error);
@@ -196,6 +281,8 @@ const TenantDashboard = () => {
       if (data) {
         setTenantData(data);
         setIsLoadingProfile(false);
+        // Try to fetch contract data after creating tenant record
+        await fetchContractData(data.tenant_id);
         toast({
           title: "Success",
           description: "Tenant profile created successfully!",
@@ -215,7 +302,7 @@ const TenantDashboard = () => {
   // Fetch maintenance requests
   const fetchMaintenanceRequests = async () => {
     if (!tenantData) return;
-    
+
     try {
       setMaintenanceLoadingData(true);
       const { data: requests, error: requestsError } = await supabase
@@ -246,6 +333,31 @@ const TenantDashboard = () => {
     }
   };
 
+  // Fetch notifications from database
+  const fetchNotifications = async () => {
+    if (!tenantData) return;
+
+    try {
+      setNotificationsLoading(true);
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('tenant_id', tenantData.tenant_id)
+        .order('sent_date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        return;
+      }
+
+      setNotifications(data || []);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
   // Load tenant data when component mounts
   useEffect(() => {
     if (user) {
@@ -257,8 +369,47 @@ const TenantDashboard = () => {
   useEffect(() => {
     if (tenantData) {
       fetchMaintenanceRequests();
+      fetchNotifications();
     }
   }, [tenantData]);
+
+  // Keyboard shortcuts for quick actions
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Only trigger if no input is focused and Ctrl/Cmd is pressed
+      if (event.ctrlKey || event.metaKey) {
+        switch (event.key) {
+          case '1':
+            event.preventDefault();
+            handleQuickAction('pay-rent');
+            break;
+          case '2':
+            event.preventDefault();
+            handleQuickAction('report-issue');
+            break;
+          case '3':
+            event.preventDefault();
+            handleQuickAction('payment-history');
+            break;
+          case '4':
+            event.preventDefault();
+            handleQuickAction('view-alerts');
+            break;
+          case '5':
+            event.preventDefault();
+            handleQuickAction('view-profile');
+            break;
+          case '6':
+            event.preventDefault();
+            handleQuickAction('maintenance-status');
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -286,33 +437,94 @@ const TenantDashboard = () => {
       id: 'pay-rent',
       title: 'Pay Rent',
       icon: <QrCode className="w-6 h-6" />,
-      description: 'Make rent payment'
+      description: 'Generate QR code for payment'
     },
     {
       id: 'report-issue',
       title: 'Report Issue',
       icon: <Wrench className="w-6 h-6" />,
-      description: 'Report maintenance issue'
+      description: 'Submit maintenance request'
     },
     {
       id: 'payment-history',
       title: 'Payment History',
       icon: <CreditCard className="w-6 h-6" />,
-      description: 'View payment records'
+      description: 'View past payments'
     },
     {
       id: 'view-alerts',
       title: 'View Alerts',
       icon: <Bell className="w-6 h-6" />,
       description: 'Check notifications'
+    },
+    {
+      id: 'view-profile',
+      title: 'My Profile',
+      icon: <User className="w-6 h-6" />,
+      description: 'Update personal info'
+    },
+    {
+      id: 'maintenance-status',
+      title: 'Maintenance Status',
+      icon: <Settings className="w-6 h-6" />,
+      description: 'Track request status'
     }
   ];
 
   const handleQuickAction = (actionId: string) => {
-    toast({
-      title: "Action Selected",
-      description: `${actionId.replace('-', ' ')} functionality will be implemented.`,
-    });
+    switch (actionId) {
+      case 'pay-rent':
+        setActiveTab('qr-pay');
+        toast({
+          title: "QR Payment",
+          description: "Redirected to QR payment section.",
+        });
+        break;
+      case 'report-issue':
+        setActiveTab('maintenance');
+        // Open the maintenance modal after a short delay to ensure tab is loaded
+        setTimeout(() => {
+          setMaintenanceModalOpen(true);
+        }, 100);
+        toast({
+          title: "Report Issue",
+          description: "Opening maintenance request form.",
+        });
+        break;
+      case 'payment-history':
+        setActiveTab('payments');
+        toast({
+          title: "Payment History",
+          description: "Redirected to payment history section.",
+        });
+        break;
+      case 'view-alerts':
+        setActiveTab('notifications');
+        toast({
+          title: "Notifications",
+          description: "Redirected to notifications section.",
+        });
+        break;
+      case 'view-profile':
+        setActiveTab('profile');
+        toast({
+          title: "Profile",
+          description: "Redirected to profile section.",
+        });
+        break;
+      case 'maintenance-status':
+        setActiveTab('maintenance');
+        toast({
+          title: "Maintenance Status",
+          description: "Redirected to maintenance section.",
+        });
+        break;
+      default:
+        toast({
+          title: "Action Selected",
+          description: `${actionId.replace('-', ' ')} functionality will be implemented.`,
+        });
+    }
   };
 
   const paymentRecords = [
@@ -413,7 +625,8 @@ const TenantDashboard = () => {
   };
 
   const handleCopyReference = () => {
-    const reference = `RENT-A-101-${Math.floor(Math.random() * 1000000)}`;
+    const unitNumber = contractData?.units?.unit_number || '000';
+    const reference = `RENT-${unitNumber}-${Math.floor(Math.random() * 1000000)}`;
     navigator.clipboard.writeText(reference);
     toast({
       title: "Reference Copied",
@@ -480,7 +693,7 @@ const TenantDashboard = () => {
 
     try {
       setMaintenanceLoading(true);
-      
+
       // Get tenant_id from the tenant data
       const { data: tenantRecord, error: tenantError } = await supabase
         .from('tenants')
@@ -492,7 +705,7 @@ const TenantDashboard = () => {
         console.error('Tenant lookup error:', tenantError);
         throw new Error(`Failed to find tenant record: ${tenantError.message}`);
       }
-      
+
       if (!tenantRecord) {
         throw new Error('No tenant record found. Please contact support.');
       }
@@ -500,7 +713,7 @@ const TenantDashboard = () => {
       // Get a unit_id (for now, we'll use a default or first available unit)
       // In a real app, you'd get this from the tenant's current contract
       let unitId = 1; // Default unit_id
-      
+
       const { data: unitData, error: unitError } = await supabase
         .from('units')
         .select('unit_id')
@@ -514,7 +727,7 @@ const TenantDashboard = () => {
           .from('units')
           .select('unit_id')
           .limit(1);
-        
+
         if (anyUnit && anyUnit.length > 0) {
           unitId = anyUnit[0].unit_id;
         }
@@ -539,15 +752,15 @@ const TenantDashboard = () => {
       if (insertError) {
         console.error('Database insert error:', insertError);
         throw new Error(`Failed to create maintenance request: ${insertError.message}`);
-    }
+      }
 
-    toast({
-      title: "Request Submitted",
-      description: "Your maintenance request has been submitted successfully.",
-    });
+      toast({
+        title: "Request Submitted",
+        description: "Your maintenance request has been submitted successfully.",
+      });
 
-    handleCloseMaintenanceModal();
-      
+      handleCloseMaintenanceModal();
+
       // Refresh maintenance requests data
       await fetchMaintenanceRequests();
     } catch (error) {
@@ -571,7 +784,7 @@ const TenantDashboard = () => {
 
   const handleEditSubmit = async () => {
     if (!user || !tenantData) return;
-    
+
     try {
       setEditLoading(true);
       const { error } = await supabase
@@ -614,18 +827,76 @@ const TenantDashboard = () => {
     }
   };
 
-  const handleMarkAllRead = () => {
-    toast({
-      title: "All Notifications Marked Read",
-      description: "All notifications have been marked as read.",
-    });
+  const handleMarkAllRead = async () => {
+    if (!tenantData) return;
+
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ status: 'read' })
+        .eq('tenant_id', tenantData.tenant_id)
+        .eq('status', 'unread');
+
+      if (error) {
+        console.error('Error marking notifications as read:', error);
+        toast({
+          title: "Error",
+          description: "Failed to mark notifications as read.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Refresh notifications
+      await fetchNotifications();
+
+      toast({
+        title: "All Notifications Marked Read",
+        description: "All notifications have been marked as read.",
+      });
+    } catch (error) {
+      console.error('Error marking notifications as read:', error);
+      toast({
+        title: "Error",
+        description: "Failed to mark notifications as read.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleNotificationAction = (notificationId: number, action: string) => {
-    toast({
-      title: "Notification Updated",
-      description: `Notification ${action} successfully.`,
-    });
+  const handleNotificationAction = async (notificationId: number, action: string) => {
+    try {
+      if (action === 'marked as read') {
+        const { error } = await supabase
+          .from('notifications')
+          .update({ status: 'read' })
+          .eq('notification_id', notificationId);
+
+        if (error) throw error;
+      } else if (action === 'deleted') {
+        const { error } = await supabase
+          .from('notifications')
+          .delete()
+          .eq('notification_id', notificationId);
+
+        if (error) throw error;
+      }
+
+      // Refresh notifications
+      await fetchNotifications();
+
+      toast({
+        title: "Notification Updated",
+        description: `Notification ${action} successfully.`,
+      });
+    } catch (error) {
+      console.error(`Error ${action} notification:`, error);
+      toast({
+        title: "Error",
+        description: `Failed to ${action.replace('marked as ', 'mark as ')} notification.`,
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSettingsChange = (setting: string, value: boolean) => {
@@ -633,11 +904,57 @@ const TenantDashboard = () => {
       ...prev,
       [setting]: value
     }));
-    
+
     toast({
       title: "Settings Updated",
       description: `Notification ${setting.replace(/([A-Z])/g, ' $1').toLowerCase()} ${value ? 'enabled' : 'disabled'}.`,
     });
+  };
+
+  // Helper functions for notifications
+  const getFilteredNotifications = () => {
+    if (notificationFilter === 'all') return notifications;
+    if (notificationFilter === 'unread') return notifications.filter(n => n.status === 'unread');
+    if (notificationFilter === 'settings') return notifications;
+    return notifications.filter(n => n.notification_type === notificationFilter);
+  };
+
+  const getNotificationCounts = () => {
+    const total = notifications.length;
+    const unread = notifications.filter(n => n.status === 'unread').length;
+    const payment = notifications.filter(n => n.notification_type === 'payment').length;
+    const maintenance = notifications.filter(n => n.notification_type === 'maintenance').length;
+    const general = notifications.filter(n => n.notification_type === 'general').length;
+
+    return { total, unread, payment, maintenance, general };
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'payment':
+        return <DollarSign className="w-6 h-6 text-green-600" />;
+      case 'maintenance':
+        return <Wrench className="w-6 h-6 text-blue-600" />;
+      case 'emergency':
+        return <AlertTriangle className="w-6 h-6 text-red-600" />;
+      case 'general':
+      default:
+        return <AlertCircle className="w-6 h-6 text-gray-600" />;
+    }
+  };
+
+  const getNotificationPriority = (type: string) => {
+    switch (type) {
+      case 'emergency':
+        return { label: 'high priority', color: 'bg-red-100 text-red-800' };
+      case 'payment':
+        return { label: 'medium priority', color: 'bg-orange-100 text-orange-800' };
+      case 'maintenance':
+        return { label: 'medium priority', color: 'bg-orange-100 text-orange-800' };
+      case 'general':
+      default:
+        return { label: 'low priority', color: 'bg-green-100 text-green-800' };
+    }
   };
 
   const handleEditProfile = () => {
@@ -707,7 +1024,10 @@ const TenantDashboard = () => {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Tenant Portal</h1>
               <p className="text-gray-600">
-                {loading ? 'Loading...' : tenantData ? `${tenantData.branch || 'Unknown Branch'} • Unit A-101` : 'No tenant data'}
+                {loading ? 'Loading...' : tenantData ?
+                  `${tenantData.branch ? tenantData.branch.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Unknown Branch'}${contractData?.units?.unit_number ? ` • Unit ${contractData.units.unit_number}` : ''}` :
+                  'No tenant data'
+                }
               </p>
             </div>
           </div>
@@ -745,17 +1065,17 @@ const TenantDashboard = () => {
                 <p><strong>Tenant Data:</strong> {tenantData ? 'Found' : 'Not found'}</p>
                 <p><strong>Tenant ID:</strong> {tenantData?.tenant_id || 'N/A'}</p>
                 <p><strong>Branch:</strong> {tenantData?.branch || 'N/A'}</p>
-                <Button 
-                  onClick={fetchTenantData} 
-                  size="sm" 
+                <Button
+                  onClick={fetchTenantData}
+                  size="sm"
                   className="mt-2"
                   disabled={loading}
                 >
                   {loading ? 'Loading...' : 'Retry Fetch'}
                 </Button>
-                <Button 
-                  onClick={createTenantRecord} 
-                  size="sm" 
+                <Button
+                  onClick={createTenantRecord}
+                  size="sm"
                   className="mt-2 ml-2"
                   variant="outline"
                 >
@@ -787,8 +1107,12 @@ const TenantDashboard = () => {
               {/* Welcome Section */}
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                 <div>
-                  <h2 className="text-3xl font-bold text-gray-900">Welcome back, Ana!</h2>
-                  <p className="text-gray-600 mt-1">Here's your rental summary for Unit A-101</p>
+                  <h2 className="text-3xl font-bold text-gray-900">
+                    Welcome back, {loading ? 'Loading...' : tenantData ? `${tenantData.first_name}!` : 'User!'}
+                  </h2>
+                  <p className="text-gray-600 mt-1">
+                    Here's your rental summary for {contractData?.units?.unit_number ? `Unit ${contractData.units.unit_number}` : 'your unit'}
+                  </p>
                 </div>
                 <div className="flex items-center space-x-4">
                   <div className="text-right">
@@ -802,7 +1126,7 @@ const TenantDashboard = () => {
               </div>
 
               {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <Card>
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
@@ -822,7 +1146,9 @@ const TenantDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600">Monthly Rent</p>
-                        <p className="text-2xl font-bold text-gray-900">₱15,000</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          ₱{contractData?.units?.monthly_rent?.toLocaleString() || '15,000'}
+                        </p>
                       </div>
                       <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                         <DollarSign className="w-6 h-6 text-green-600" />
@@ -850,10 +1176,24 @@ const TenantDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600">Maintenance Requests</p>
-                        <p className="text-2xl font-bold text-gray-900">2</p>
+                        <p className="text-2xl font-bold text-gray-900">{maintenanceStats.total}</p>
                       </div>
                       <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                         <Wrench className="w-6 h-6 text-blue-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Unread Notifications</p>
+                        <p className="text-2xl font-bold text-gray-900">{getNotificationCounts().unread}</p>
+                      </div>
+                      <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                        <Bell className="w-6 h-6 text-yellow-600" />
                       </div>
                     </div>
                   </CardContent>
@@ -875,7 +1215,9 @@ const TenantDashboard = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Monthly Rent:</span>
-                        <span className="font-medium">₱15,000</span>
+                        <span className="font-medium">
+                          ₱{contractData?.units?.monthly_rent?.toLocaleString() || '15,000'}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Payment Due Date:</span>
@@ -887,7 +1229,9 @@ const TenantDashboard = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Unit Number:</span>
-                        <span className="font-medium">A-101</span>
+                        <span className="font-medium">
+                          {contractData?.units?.unit_number || 'Not assigned'}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Branch:</span>
@@ -903,19 +1247,28 @@ const TenantDashboard = () => {
                 <Card>
                   <CardHeader>
                     <CardTitle>Quick Actions</CardTitle>
-                    <p className="text-sm text-gray-600">Common tasks and shortcuts</p>
+                    <p className="text-sm text-gray-600">Common tasks and shortcuts • Use Ctrl+1-6 for quick access</p>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       {quickActions.map((action) => (
                         <Button
                           key={action.id}
                           variant="outline"
-                          className="flex flex-col items-center justify-center h-24 space-y-2 hover:bg-gray-50"
+                          className="flex flex-col items-center justify-center h-32 space-y-2 hover:bg-blue-50 hover:border-blue-200 transition-colors relative"
                           onClick={() => handleQuickAction(action.id)}
+                          title={`${action.description} (Ctrl+${quickActions.indexOf(action) + 1})`}
                         >
-                          {action.icon}
-                          <span className="text-sm font-medium">{action.title}</span>
+                          <div className="absolute top-2 right-2 text-xs text-gray-400 bg-gray-100 px-1 rounded">
+                            ⌘{quickActions.indexOf(action) + 1}
+                          </div>
+                          <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+                            {action.icon}
+                          </div>
+                          <div className="text-center">
+                            <span className="text-sm font-medium block">{action.title}</span>
+                            <span className="text-xs text-gray-500">{action.description}</span>
+                          </div>
                         </Button>
                       ))}
                     </div>
@@ -948,15 +1301,15 @@ const TenantDashboard = () => {
                 </Card>
               ) : (
                 <>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Personal Information */}
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>Personal Information</CardTitle>
-                        <p className="text-sm text-gray-600 mt-1">Your contact details and personal data</p>
-                      </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Personal Information */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle>Personal Information</CardTitle>
+                            <p className="text-sm text-gray-600 mt-1">Your contact details and personal data</p>
+                          </div>
                           {!isEditingProfile ? (
                             <Button variant="outline" size="sm" className="flex items-center space-x-2" onClick={() => {
                               setEditForm({
@@ -973,8 +1326,8 @@ const TenantDashboard = () => {
                               });
                               setEditModalOpen(true);
                             }}>
-                        <Edit className="w-4 h-4" />
-                        <span>Edit</span>
+                              <Edit className="w-4 h-4" />
+                              <span>Edit</span>
                             </Button>
                           ) : (
                             <div className="flex gap-2">
@@ -983,22 +1336,22 @@ const TenantDashboard = () => {
                               </Button>
                               <Button size="sm" onClick={handleSaveProfile}>
                                 Save
-                      </Button>
+                              </Button>
                             </div>
                           )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
                         {isEditingProfile ? (
-                    <div className="space-y-4">
-                        <div>
+                          <div className="space-y-4">
+                            <div>
                               <Label htmlFor="first_name">First Name</Label>
                               <Input
                                 id="first_name"
                                 value={editForm.first_name}
                                 onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
                               />
-                        </div>
+                            </div>
                             <div>
                               <Label htmlFor="last_name">Last Name</Label>
                               <Input
@@ -1006,15 +1359,15 @@ const TenantDashboard = () => {
                                 value={editForm.last_name}
                                 onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
                               />
-                      </div>
-                        <div>
+                            </div>
+                            <div>
                               <Label htmlFor="contact_number">Phone Number</Label>
                               <Input
                                 id="contact_number"
                                 value={editForm.contact_number}
                                 onChange={(e) => setEditForm({ ...editForm, contact_number: e.target.value })}
                               />
-                        </div>
+                            </div>
                             <div>
                               <Label htmlFor="email">Email Address</Label>
                               <Input
@@ -1024,209 +1377,209 @@ const TenantDashboard = () => {
                                 className="bg-gray-50"
                               />
                               <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
-                      </div>
+                            </div>
                           </div>
                         ) : (
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-3">
-                        <User className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Full Name</p>
+                          <div className="space-y-4">
+                            <div className="flex items-center space-x-3">
+                              <User className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Full Name</p>
                                 <p className="font-medium text-gray-900">
                                   {tenantData.first_name} {tenantData.last_name}
                                 </p>
-                        </div>
-                      </div>
+                              </div>
+                            </div>
 
 
-                      <div className="flex items-center space-x-3">
+                            <div className="flex items-center space-x-3">
                               <Phone className="w-5 h-5 text-gray-400" />
-                        <div>
+                              <div>
                                 <p className="text-sm text-gray-600">Phone Number</p>
                                 <p className="font-medium text-gray-900">
                                   {tenantData.contact_number || 'Not provided'}
                                 </p>
-                        </div>
-                      </div>
+                              </div>
+                            </div>
 
-                      <div className="flex items-center space-x-3">
-                        <Mail className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Email Address</p>
+                            <div className="flex items-center space-x-3">
+                              <Mail className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Email Address</p>
                                 <p className="font-medium text-gray-900">
                                   {tenantData.email || 'Not provided'}
                                 </p>
-                        </div>
-                      </div>
+                              </div>
+                            </div>
 
-                      <div className="flex items-center space-x-3">
+                            <div className="flex items-center space-x-3">
                               <Building2 className="w-5 h-5 text-gray-400" />
-                        <div>
+                              <div>
                                 <p className="text-sm text-gray-600">Branch</p>
                                 <p className="font-medium text-gray-900">
                                   {tenantData.branch ? tenantData.branch.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Not provided'}
                                 </p>
-                        </div>
-                      </div>
+                              </div>
+                            </div>
 
                             {tenantData.move_in_date && (
-                      <div className="flex items-center space-x-3">
+                              <div className="flex items-center space-x-3">
                                 <Calendar className="w-5 h-5 text-gray-400" />
-                        <div>
+                                <div>
                                   <p className="text-sm text-gray-600">Move-in Date</p>
                                   <p className="font-medium text-gray-900">
                                     {new Date(tenantData.move_in_date).toLocaleDateString()}
                                   </p>
-                        </div>
-                      </div>
+                                </div>
+                              </div>
                             )}
-                    </div>
+                          </div>
                         )}
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
 
-                {/* Emergency Contact Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Emergency Contact (Philippines)</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">Your emergency contact information</p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                      <div className="flex items-center space-x-3">
-                        <User className="w-5 h-5 text-gray-400" />
-                        <div>
-                        <p className="text-sm text-gray-600">Contact Name</p>
-                        <p className="font-medium text-gray-900">
-                          {tenantData.emergency_contact_name || 'Not provided'}
-                        </p>
+                    {/* Emergency Contact Information */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Emergency Contact (Philippines)</CardTitle>
+                        <p className="text-sm text-gray-600 mt-1">Your emergency contact information</p>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center space-x-3">
+                          <User className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="text-sm text-gray-600">Contact Name</p>
+                            <p className="font-medium text-gray-900">
+                              {tenantData.emergency_contact_name || 'Not provided'}
+                            </p>
+                          </div>
                         </div>
-                    </div>
 
-                    <div className="flex items-center space-x-3">
-                      <Phone className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-600">Contact Phone</p>
-                        <p className="font-medium text-gray-900">
-                          {tenantData.emergency_contact_phone || 'Not provided'}
-                        </p>
-                      </div>
-                    </div>
+                        <div className="flex items-center space-x-3">
+                          <Phone className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="text-sm text-gray-600">Contact Phone</p>
+                            <p className="font-medium text-gray-900">
+                              {tenantData.emergency_contact_phone || 'Not provided'}
+                            </p>
+                          </div>
+                        </div>
 
-                    <div className="flex items-center space-x-3">
-                      <Users className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-600">Relationship</p>
-                        <p className="font-medium text-gray-900">
-                          {tenantData.emergency_contact_relationship || 'Not provided'}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                        <div className="flex items-center space-x-3">
+                          <Users className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="text-sm text-gray-600">Relationship</p>
+                            <p className="font-medium text-gray-900">
+                              {tenantData.emergency_contact_relationship || 'Not provided'}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                {/* Occupation Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Occupation</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">Your professional information</p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <UserCheck className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-600">Job Title</p>
-                        <p className="font-medium text-gray-900">
-                          {tenantData.occupation || 'Not provided'}
-                        </p>
-                      </div>
-                    </div>
+                    {/* Occupation Information */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Occupation</CardTitle>
+                        <p className="text-sm text-gray-600 mt-1">Your professional information</p>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center space-x-3">
+                          <UserCheck className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="text-sm text-gray-600">Job Title</p>
+                            <p className="font-medium text-gray-900">
+                              {tenantData.occupation || 'Not provided'}
+                            </p>
+                          </div>
+                        </div>
 
-                    <div className="flex items-center space-x-3">
-                      <Building2 className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-600">Company</p>
-                        <p className="font-medium text-gray-900">
-                          {tenantData.company || 'Not provided'}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                        <div className="flex items-center space-x-3">
+                          <Building2 className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="text-sm text-gray-600">Company</p>
+                            <p className="font-medium text-gray-900">
+                              {tenantData.company || 'Not provided'}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                {/* Rental Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Rental Information</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">Your unit and lease details</p>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                    {/* Rental Information */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Rental Information</CardTitle>
+                        <p className="text-sm text-gray-600 mt-1">Your unit and lease details</p>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
                         {contractData ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-3">
-                        <Home className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Unit Number</p>
+                          <div className="space-y-4">
+                            <div className="flex items-center space-x-3">
+                              <Home className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Unit Number</p>
                                 <p className="font-medium text-gray-900">{contractData.units?.unit_number || 'N/A'}</p>
-                        </div>
-                      </div>
+                              </div>
+                            </div>
 
-                      <div className="flex items-center space-x-3">
-                        <Building2 className="w-5 h-5 text-gray-400" />
-                        <div>
+                            <div className="flex items-center space-x-3">
+                              <Building2 className="w-5 h-5 text-gray-400" />
+                              <div>
                                 <p className="text-sm text-gray-600">Unit Type</p>
                                 <p className="font-medium text-gray-900">{contractData.units?.unit_type || 'N/A'}</p>
-                        </div>
-                      </div>
+                              </div>
+                            </div>
 
-                      <div className="flex items-center space-x-3">
-                        <DollarSign className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Monthly Rent</p>
+                            <div className="flex items-center space-x-3">
+                              <DollarSign className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Monthly Rent</p>
                                 <p className="font-medium text-gray-900">
                                   ₱{contractData.units?.monthly_rent?.toLocaleString() || 'N/A'}
                                 </p>
-                        </div>
-                      </div>
+                              </div>
+                            </div>
 
-                      <div className="flex items-center space-x-3">
-                        <Calendar className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Contract Start</p>
+                            <div className="flex items-center space-x-3">
+                              <Calendar className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Contract Start</p>
                                 <p className="font-medium text-gray-900">
                                   {new Date(contractData.start_date).toLocaleDateString()}
                                 </p>
-                        </div>
-                      </div>
+                              </div>
+                            </div>
 
-                      <div className="flex items-center space-x-3">
-                        <Calendar className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-600">Contract End</p>
+                            <div className="flex items-center space-x-3">
+                              <Calendar className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Contract End</p>
                                 <p className="font-medium text-gray-900">
                                   {new Date(contractData.end_date).toLocaleDateString()}
                                 </p>
-                        </div>
-                      </div>
+                              </div>
+                            </div>
 
-                      <div className="flex items-center space-x-3">
+                            <div className="flex items-center space-x-3">
                               <CheckCircle className="w-5 h-5 text-gray-400" />
-                        <div>
+                              <div>
                                 <p className="text-sm text-gray-600">Contract Status</p>
                                 <Badge className={contractData.status === 'active' ? 'bg-green-600' : 'bg-gray-600'}>
                                   {contractData.status}
                                 </Badge>
-                        </div>
-                      </div>
-                    </div>
+                              </div>
+                            </div>
+                          </div>
                         ) : (
                           <div className="text-center py-8">
                             <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                             <p className="text-gray-600">No active contract found</p>
-                      </div>
+                          </div>
                         )}
-                  </CardContent>
-                </Card>
-              </div>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </>
               )}
 
@@ -1234,7 +1587,7 @@ const TenantDashboard = () => {
               <div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Contract Documents</h3>
                 <p className="text-gray-600 mb-6">Download and view your rental agreement and related documents</p>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Rental Contract */}
                   <Card>
@@ -1330,7 +1683,7 @@ const TenantDashboard = () => {
               <div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Account Settings</h3>
                 <p className="text-gray-600 mb-6">Manage your account preferences and notifications</p>
-                
+
                 <Card>
                   <CardContent className="p-6">
                     <div className="space-y-6">
@@ -1396,7 +1749,7 @@ const TenantDashboard = () => {
                   <h2 className="text-3xl font-bold text-gray-900">Payment History</h2>
                   <p className="text-gray-600 mt-1">View your payment records and download receipts</p>
                 </div>
-                <Button 
+                <Button
                   onClick={handleDownloadAll}
                   className="bg-gray-800 text-white hover:bg-gray-700 flex items-center space-x-2"
                 >
@@ -1530,8 +1883,8 @@ const TenantDashboard = () => {
                                 {getStatusBadge(record.status)}
                               </td>
                               <td className="py-4 px-6">
-                                <Button 
-                                  variant="ghost" 
+                                <Button
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() => handleDownloadReceipt(record.id)}
                                   className="p-2"
@@ -1552,7 +1905,7 @@ const TenantDashboard = () => {
               <div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Payment Summary (2024)</h3>
                 <p className="text-gray-600 mb-6">Overview of your payment activity</p>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <Card>
                     <CardContent className="p-6">
@@ -1647,7 +2000,7 @@ const TenantDashboard = () => {
                 <div>
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">Upcoming Payments</h4>
                   <p className="text-gray-600 mb-6">Schedule and reminders for future payments</p>
-                  
+
                   <div className="space-y-4">
                     <Card className="border-yellow-200 bg-yellow-50">
                       <CardContent className="p-6">
@@ -1802,15 +2155,21 @@ const TenantDashboard = () => {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">Reference Number:</span>
-                          <span className="font-medium">RENT-A-101-406707</span>
+                          <span className="font-medium">
+                            RENT-{contractData?.units?.unit_number || '000'}-{Math.floor(Math.random() * 1000000)}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">Tenant:</span>
-                          <span className="font-medium">{user?.user_metadata?.name || 'Ana Garcia'}</span>
+                          <span className="font-medium">
+                            {tenantData ? `${tenantData.first_name} ${tenantData.last_name}`.trim() : user?.user_metadata?.name || 'Tenant'}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">Unit:</span>
-                          <span className="font-medium">A-101</span>
+                          <span className="font-medium">
+                            {contractData?.units?.unit_number || 'Not assigned'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -1879,7 +2238,9 @@ const TenantDashboard = () => {
                           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <span className="text-sm text-gray-600">Reference:</span>
                             <div className="flex items-center space-x-2">
-                              <span className="font-medium">RENT-A-101-406707</span>
+                              <span className="font-medium">
+                                RENT-{contractData?.units?.unit_number || '000'}-{Math.floor(Math.random() * 1000000)}
+                              </span>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1931,7 +2292,7 @@ const TenantDashboard = () => {
                   <h2 className="text-3xl font-bold text-gray-900">Maintenance Requests</h2>
                   <p className="text-gray-600 mt-1">Submit and track maintenance requests for your unit</p>
                 </div>
-                <Button 
+                <Button
                   onClick={handleNewRequest}
                   className="bg-blue-600 hover:bg-blue-700 text-white flex items-center space-x-2"
                 >
@@ -2017,20 +2378,20 @@ const TenantDashboard = () => {
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
                       <p className="text-gray-600">Loading maintenance requests...</p>
-                          </div>
-                            </div>
+                    </div>
+                  </div>
                 ) : maintenanceRequests.length === 0 ? (
                   <div className="text-center py-8">
                     <Wrench className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">No Maintenance Requests</h3>
                     <p className="text-gray-600 mb-4">You haven't submitted any maintenance requests yet.</p>
-                    <Button 
+                    <Button
                       onClick={handleNewRequest}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
                       Submit Your First Request
                     </Button>
-                              </div>
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     {maintenanceRequests.map((request) => {
@@ -2072,14 +2433,14 @@ const TenantDashboard = () => {
 
                       return (
                         <Card key={request.request_id}>
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-4">
+                          <CardContent className="p-6">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start space-x-4">
                                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                                   <Wrench className="w-6 h-6 text-blue-600" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-3 mb-2">
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-3 mb-2">
                                     <h4 className="text-lg font-semibold text-gray-900">
                                       {request.description?.substring(0, 50)}...
                                     </h4>
@@ -2089,45 +2450,45 @@ const TenantDashboard = () => {
                                     <Badge className={getStatusColor(request.status)}>
                                       {request.status}
                                     </Badge>
-                            </div>
-                            <p className="text-gray-600 mb-4">
+                                  </div>
+                                  <p className="text-gray-600 mb-4">
                                     {request.description}
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                              <div>
-                                <span className="text-gray-500">Submitted:</span>
+                                  </p>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <span className="text-gray-500">Submitted:</span>
                                       <span className="ml-2 font-medium">
                                         {formatDate(request.created_date)}
                                       </span>
-                              </div>
+                                    </div>
                                     {request.resolved_date && (
-                              <div>
+                                      <div>
                                         <span className="text-gray-500">Resolved:</span>
                                         <span className="ml-2 font-medium">
                                           {formatDate(request.resolved_date)}
                                         </span>
-                              </div>
+                                      </div>
                                     )}
-                            </div>
-                            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                              <p className="text-sm text-gray-600">
+                                  </div>
+                                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                                    <p className="text-sm text-gray-600">
                                       <span className="font-medium">Priority:</span> {request.priority}
                                     </p>
                                     <p className="text-sm text-gray-600 mt-1">
                                       <span className="font-medium">Status:</span> {request.status}
                                     </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center">
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center">
                                 {getStatusIcon(request.status)}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
                       );
                     })}
-                </div>
+                  </div>
                 )}
               </div>
 
@@ -2258,28 +2619,35 @@ const TenantDashboard = () => {
                     onClick={() => setNotificationFilter('all')}
                     className="rounded-full"
                   >
-                    All (6)
+                    All ({getNotificationCounts().total})
                   </Button>
                   <Button
                     variant={notificationFilter === 'unread' ? 'default' : 'outline'}
                     onClick={() => setNotificationFilter('unread')}
                     className="rounded-full"
                   >
-                    Unread (2)
+                    Unread ({getNotificationCounts().unread})
                   </Button>
                   <Button
                     variant={notificationFilter === 'payment' ? 'default' : 'outline'}
                     onClick={() => setNotificationFilter('payment')}
                     className="rounded-full"
                   >
-                    Payment
+                    Payment ({getNotificationCounts().payment})
                   </Button>
                   <Button
                     variant={notificationFilter === 'maintenance' ? 'default' : 'outline'}
                     onClick={() => setNotificationFilter('maintenance')}
                     className="rounded-full"
                   >
-                    Maintenance
+                    Maintenance ({getNotificationCounts().maintenance})
+                  </Button>
+                  <Button
+                    variant={notificationFilter === 'general' ? 'default' : 'outline'}
+                    onClick={() => setNotificationFilter('general')}
+                    className="rounded-full"
+                  >
+                    General ({getNotificationCounts().general})
                   </Button>
                   <Button
                     variant={notificationFilter === 'settings' ? 'default' : 'outline'}
@@ -2295,11 +2663,14 @@ const TenantDashboard = () => {
                     variant="outline"
                     onClick={handleMarkAllRead}
                     className="flex items-center space-x-2"
+                    disabled={getNotificationCounts().unread === 0}
                   >
                     <CheckCircle className="w-4 h-4" />
                     <span>Mark All Read</span>
                   </Button>
-                  <Badge className="bg-gray-800 text-white">2 unread</Badge>
+                  <Badge className="bg-gray-800 text-white">
+                    {getNotificationCounts().unread} unread
+                  </Badge>
                 </div>
               </div>
 
@@ -2424,194 +2795,106 @@ const TenantDashboard = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                {/* Payment Reminder (Unread) */}
-                <Card className="border-l-4 border-l-blue-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4">
-                        <div className="relative">
-                          <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                            <DollarSign className="w-6 h-6 text-green-600" />
-                          </div>
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full"></div>
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h4 className="text-lg font-semibold text-gray-900">Payment Reminder</h4>
-                            <Badge className="bg-blue-100 text-blue-800">payment</Badge>
-                            <Badge className="bg-red-100 text-red-800">high priority</Badge>
-                          </div>
-                          <p className="text-gray-600 mb-3">
-                            Your rent payment for September 2024 is due in 3 days. Please settle your payment to avoid late charges.
-                          </p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-500">2024-08-28</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleNotificationAction(1, 'marked as read')}
-                          className="h-8 w-8 p-0"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleNotificationAction(1, 'deleted')}
-                          className="h-8 w-8 p-0"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
+                  {notificationsLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
                     </div>
-                  </CardContent>
-                </Card>
+                  ) : getFilteredNotifications().length === 0 ? (
+                    <Card>
+                      <CardContent className="p-12 text-center">
+                        <Bell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Notifications</h3>
+                        <p className="text-gray-600">
+                          {notificationFilter === 'unread'
+                            ? "You're all caught up! No unread notifications."
+                            : notificationFilter === 'all'
+                              ? "You don't have any notifications yet."
+                              : `No ${notificationFilter} notifications found.`
+                          }
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    getFilteredNotifications().map((notification) => {
+                      const priority = getNotificationPriority(notification.notification_type);
+                      const isUnread = notification.status === 'unread';
+                      const isEmergency = notification.notification_type === 'emergency';
 
-                {/* Maintenance Request Update */}
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <Wrench className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h4 className="text-lg font-semibold text-gray-900">Maintenance Request Update</h4>
-                            <Badge className="bg-blue-100 text-blue-800">maintenance</Badge>
-                            <Badge className="bg-orange-100 text-orange-800">medium priority</Badge>
-                          </div>
-                          <p className="text-gray-600 mb-3">
-                            Your kitchen sink repair has been completed. The technician has fixed the leak and tested the system.
-                          </p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-500">2024-08-25</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleNotificationAction(2, 'deleted')}
-                          className="h-8 w-8 p-0"
+                      return (
+                        <Card
+                          key={notification.notification_id}
+                          className={`${isEmergency ? 'border-l-4 border-l-red-500' : isUnread ? 'border-l-4 border-l-blue-500' : ''}`}
                         >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Building Maintenance Notice */}
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                          <AlertCircle className="w-6 h-6 text-gray-600" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h4 className="text-lg font-semibold text-gray-900">Building Maintenance Notice</h4>
-                            <Badge className="bg-gray-100 text-gray-800">general</Badge>
-                            <Badge className="bg-orange-100 text-orange-800">medium priority</Badge>
-                          </div>
-                          <p className="text-gray-600 mb-3">
-                            Scheduled water system maintenance on September 5, 2024 from 10 AM to 2 PM. Water supply will be temporarily interrupted.
-                          </p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-500">2024-08-24</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleNotificationAction(3, 'deleted')}
-                          className="h-8 w-8 p-0"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Payment Confirmation */}
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4">
-                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                          <DollarSign className="w-6 h-6 text-green-600" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h4 className="text-lg font-semibold text-gray-900">Payment Confirmation</h4>
-                            <Badge className="bg-blue-100 text-blue-800">payment</Badge>
-                            <Badge className="bg-green-100 text-green-800">low priority</Badge>
-                          </div>
-                          <p className="text-gray-600 mb-3">
-                            Your payment of ₱15,000 for August 2024 has been successfully processed. Thank you for your prompt payment.
-                          </p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-500">2024-08-15</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleNotificationAction(4, 'deleted')}
-                          className="h-8 w-8 p-0"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Emergency Maintenance Alert */}
-                <Card className="border-l-4 border-l-red-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4">
-                        <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                          <AlertTriangle className="w-6 h-6 text-red-600" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h4 className="text-lg font-semibold text-gray-900">Emergency Maintenance Alert</h4>
-                          </div>
-                          <p className="text-gray-600 mb-3">
-                            Emergency electrical work required tonight from 10 PM to 6 AM. Power will be temporarily shut off in affected areas.
-                          </p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-500">2024-08-20</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleNotificationAction(5, 'deleted')}
-                          className="h-8 w-8 p-0"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                          <CardContent className="p-6">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start space-x-4">
+                                <div className="relative">
+                                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${notification.notification_type === 'payment' ? 'bg-green-100' :
+                                    notification.notification_type === 'maintenance' ? 'bg-blue-100' :
+                                      notification.notification_type === 'emergency' ? 'bg-red-100' :
+                                        'bg-gray-100'
+                                    }`}>
+                                    {getNotificationIcon(notification.notification_type)}
+                                  </div>
+                                  {isUnread && (
+                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full"></div>
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-3 mb-2">
+                                    <h4 className="text-lg font-semibold text-gray-900">
+                                      {notification.notification_type === 'payment' ? 'Payment Notification' :
+                                        notification.notification_type === 'maintenance' ? 'Maintenance Update' :
+                                          notification.notification_type === 'emergency' ? 'Emergency Alert' :
+                                            'General Notification'}
+                                    </h4>
+                                    <Badge className="bg-blue-100 text-blue-800">
+                                      {notification.notification_type}
+                                    </Badge>
+                                    {!isEmergency && (
+                                      <Badge className={priority.color}>
+                                        {priority.label}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-gray-600 mb-3">
+                                    {notification.message}
+                                  </p>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm text-gray-500">
+                                      {new Date(notification.sent_date).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                {isUnread && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleNotificationAction(notification.notification_id, 'marked as read')}
+                                    className="h-8 w-8 p-0"
+                                    title="Mark as read"
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleNotificationAction(notification.notification_id, 'deleted')}
+                                  className="h-8 w-8 p-0"
+                                  title="Delete notification"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
                 </div>
               )}
             </div>
@@ -2786,7 +3069,7 @@ const TenantDashboard = () => {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="contact_number">Phone Number</Label>
               <Input
@@ -2799,8 +3082,8 @@ const TenantDashboard = () => {
 
             <div className="space-y-2">
               <Label htmlFor="branch">Branch</Label>
-              <Select 
-                value={editForm.branch} 
+              <Select
+                value={editForm.branch}
                 onValueChange={(value) => handleEditFormChange('branch', value)}
               >
                 <SelectTrigger>
@@ -2874,14 +3157,14 @@ const TenantDashboard = () => {
             </div>
 
             <div className="flex justify-end space-x-2 pt-4">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setEditModalOpen(false)}
                 disabled={editLoading}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleEditSubmit}
                 disabled={editLoading}
               >
