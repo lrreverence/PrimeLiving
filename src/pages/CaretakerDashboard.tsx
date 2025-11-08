@@ -65,6 +65,10 @@ const CaretakerDashboard = () => {
   const [scheduleDate, setScheduleDate] = useState('');
   const [maintenanceFilter, setMaintenanceFilter] = useState('all');
   const [landlordData, setLandlordData] = useState<any>(null);
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [tenantsLoading, setTenantsLoading] = useState(false);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { logout, user } = useAuth();
   const { toast } = useToast();
@@ -72,10 +76,15 @@ const CaretakerDashboard = () => {
 
   // Fetch landlord data from Supabase
   const fetchLandlordData = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('No user found');
+      return;
+    }
     
     try {
       setIsLoading(true);
+      console.log('Fetching landlord data for user:', user.id);
+      
       const { data, error } = await supabase
         .from('landlords')
         .select('*')
@@ -84,9 +93,12 @@ const CaretakerDashboard = () => {
 
       if (error) {
         console.error('Error fetching landlord data:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         // If no landlord record exists, we'll show a default
         setLandlordData(null);
       } else {
+        console.log('Fetched landlord data:', data);
+        console.log('Landlord branch:', data?.branch);
         setLandlordData(data);
       }
     } catch (error) {
@@ -97,12 +109,175 @@ const CaretakerDashboard = () => {
     }
   };
 
+  // Fetch tenants filtered by branch
+  const fetchTenants = async () => {
+    if (!landlordData?.branch) {
+      console.log('No landlord branch found. Landlord data:', landlordData);
+      return;
+    }
+
+    try {
+      setTenantsLoading(true);
+      const branchValue = landlordData.branch;
+      console.log('Fetching tenants for branch:', branchValue);
+      console.log('Landlord data:', landlordData);
+      
+      // First, let's check all tenants to see what branches exist
+      const { data: allTenants, error: allError } = await supabase
+        .from('tenants')
+        .select('tenant_id, branch, first_name, last_name, email')
+        .limit(10);
+      
+      console.log('All tenants (sample):', allTenants);
+      if (allError) {
+        console.error('Error fetching all tenants:', allError);
+      }
+      
+      // Now fetch tenants filtered by branch
+      const { data, error } = await supabase
+        .from('tenants')
+        .select(`
+          *,
+          contracts (
+            *,
+            units (*)
+          )
+        `)
+        .eq('branch', branchValue)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching tenants:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        toast({
+          title: "Error",
+          description: `Failed to load tenants: ${error.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('Fetched tenants for branch:', branchValue, 'Count:', data?.length || 0);
+      console.log('Fetched tenants data:', data);
+      
+      if (data) {
+        setTenants(data);
+        if (data.length === 0) {
+          console.warn('No tenants found for branch:', branchValue);
+          toast({
+            title: "No Tenants Found",
+            description: `No tenants found for branch: ${branchValue}`,
+            variant: "default"
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching tenants:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load tenants. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setTenantsLoading(false);
+    }
+  };
+
   // Load landlord data when component mounts
   useEffect(() => {
     if (user) {
       fetchLandlordData();
     }
   }, [user]);
+
+  // Fetch payments for tenants in the same branch
+  const fetchPayments = async () => {
+    if (!landlordData?.branch) {
+      console.log('No landlord branch found for payments');
+      return;
+    }
+
+    try {
+      setPaymentsLoading(true);
+      const tenantIds = tenants.length > 0 ? tenants.map(t => t.tenant_id) : [];
+      console.log('Fetching payments for branch:', landlordData.branch);
+      console.log('Tenant IDs:', tenantIds);
+      
+      // If we have tenant IDs, filter by them. Otherwise, let RLS policy filter by branch
+      let query = supabase
+        .from('payments')
+        .select(`
+          *,
+          tenants (
+            tenant_id,
+            first_name,
+            last_name,
+            email,
+            branch
+          ),
+          contracts (
+            *,
+            units (
+              unit_number
+            )
+          )
+        `)
+        .order('payment_date', { ascending: false });
+
+      // If we have tenant IDs, filter by them for better performance
+      if (tenantIds.length > 0) {
+        query = query.in('tenant_id', tenantIds);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching payments:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        toast({
+          title: "Error",
+          description: `Failed to load payments: ${error.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('Fetched payments:', data);
+      console.log('Payment count:', data?.length || 0);
+      if (data) {
+        setPayments(data);
+        if (data.length === 0) {
+          console.warn('No payments found for branch:', landlordData.branch);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching payments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load payments. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setPaymentsLoading(false);
+    }
+  };
+
+  // Load tenants when landlord data is available
+  useEffect(() => {
+    if (landlordData?.branch) {
+      console.log('Landlord data changed, fetching tenants. Branch:', landlordData.branch);
+      fetchTenants();
+    } else if (landlordData && !landlordData.branch) {
+      console.warn('Landlord data exists but no branch found:', landlordData);
+    }
+  }, [landlordData]);
+
+  // Load payments when tenants are available
+  useEffect(() => {
+    if (tenants.length > 0) {
+      fetchPayments();
+    }
+  }, [tenants]);
 
   // Helper function to format branch name
   const formatBranchName = (branch: string) => {
@@ -209,91 +384,82 @@ const CaretakerDashboard = () => {
     }
   ];
 
-  const tenants = [
-    {
-      id: 1,
-      name: 'Ana Garcia',
-      email: 'ana.garcia@email.com',
-      unit: 'A-101',
-      contact: '+63-912-345-6789',
-      monthlyRent: 15000,
-      contractStart: '2024-01-15',
-      contractEnd: '2025-01-14',
-      status: 'active',
-      balance: 0
-    },
-    {
-      id: 2,
-      name: 'Roberto Martinez',
-      email: 'roberto.martinez@email.com',
-      unit: 'B-205',
-      contact: '+63-923-456-7890',
-      monthlyRent: 18000,
-      contractStart: '2024-03-01',
-      contractEnd: '2025-02-28',
-      status: 'active',
-      balance: 18000
-    },
-    {
-      id: 3,
-      name: 'Sofia Reyes',
-      email: 'sofia.reyes@email.com',
-      unit: 'C-304',
-      contact: '+63-934-567-8901',
-      monthlyRent: 20000,
-      contractStart: '2023-06-01',
-      contractEnd: '2024-05-31',
-      status: 'inactive',
-      balance: 40000
+  // Format tenant data for display
+  const formattedTenants = tenants.map((tenant) => {
+    // Handle contracts - it could be an array or a single object
+    let contract = null;
+    if (Array.isArray(tenant.contracts)) {
+      contract = tenant.contracts.length > 0 ? tenant.contracts[0] : null;
+    } else if (tenant.contracts) {
+      contract = tenant.contracts;
     }
-  ];
+    
+    // Handle units - could be nested in contract or direct
+    let unit = null;
+    if (contract) {
+      if (Array.isArray(contract.units)) {
+        unit = contract.units.length > 0 ? contract.units[0] : null;
+      } else if (contract.units) {
+        unit = contract.units;
+      }
+    }
+    
+    return {
+      id: tenant.tenant_id,
+      name: `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() || tenant.email?.split('@')[0] || 'Unknown',
+      email: tenant.email || '',
+      unit: unit?.unit_number || 'N/A',
+      contact: tenant.contact_number || 'N/A',
+      monthlyRent: unit?.monthly_rent ? parseFloat(unit.monthly_rent) : 0,
+      contractStart: contract?.start_date ? new Date(contract.start_date).toISOString().split('T')[0] : 'N/A',
+      contractEnd: contract?.end_date ? new Date(contract.end_date).toISOString().split('T')[0] : 'N/A',
+      status: contract?.status || 'inactive',
+      balance: 0, // TODO: Calculate from payments
+      tenantData: tenant
+    };
+  });
 
-  const filteredTenants = tenants.filter(tenant =>
+  const filteredTenants = formattedTenants.filter(tenant =>
     tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    tenant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     tenant.unit.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const payments = [
-    {
-      id: 1,
-      tenantName: 'Ana Garcia',
-      unit: 'A-101',
-      amount: 15000,
-      period: 'August 2024',
-      paymentDate: '2024-08-01',
-      method: 'gcash',
-      status: 'confirmed'
-    },
-    {
-      id: 2,
-      tenantName: 'Roberto Martinez',
-      unit: 'B-205',
-      amount: 18000,
-      period: 'July 2024',
-      paymentDate: '2024-07-15',
-      method: 'cash',
-      status: 'confirmed'
-    },
-    {
-      id: 3,
-      tenantName: 'Sofia Reyes',
-      unit: 'C-304',
-      amount: 20000,
-      period: 'August 2024',
-      paymentDate: '2024-08-20',
-      method: 'bank transfer',
-      status: 'pending'
-    }
-  ];
+  // Format payment data for display
+  const formattedPayments = payments.map((payment) => {
+    const tenant = payment.tenants || null;
+    const contract = payment.contracts || null;
+    const unit = contract?.units || null;
+    
+    const paymentDate = new Date(payment.payment_date);
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    const period = `${monthNames[paymentDate.getMonth()]} ${paymentDate.getFullYear()}`;
+    
+    return {
+      id: payment.payment_id,
+      tenantName: tenant ? `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() || tenant.email?.split('@')[0] || 'Unknown' : 'Unknown',
+      unit: unit?.unit_number || 'N/A',
+      amount: parseFloat(payment.amount),
+      period: period,
+      paymentDate: paymentDate.toISOString().split('T')[0],
+      method: payment.payment_mode?.toLowerCase() || 'unknown',
+      status: (payment.status === 'confirmed' || payment.status === 'completed' || payment.status === 'paid') 
+        ? 'confirmed' 
+        : payment.status || 'pending',
+      receipt_url: payment.receipt_url,
+      paymentData: payment
+    };
+  });
 
-  const filteredPayments = payments.filter(payment => {
+  const filteredPayments = formattedPayments.filter(payment => {
     if (paymentFilter === 'all') return true;
     return payment.status === paymentFilter;
   });
 
-  const totalPayments = payments.reduce((sum, payment) => sum + payment.amount, 0);
-  const confirmedCount = payments.filter(p => p.status === 'confirmed').length;
-  const pendingCount = payments.filter(p => p.status === 'pending').length;
+  const totalPayments = formattedPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  const confirmedCount = formattedPayments.filter(p => p.status === 'confirmed').length;
+  const pendingCount = formattedPayments.filter(p => p.status === 'pending').length;
 
   const documentTypes = [
     'Payment Receipt',
@@ -724,55 +890,72 @@ const CaretakerDashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredTenants.map((tenant) => (
-                          <tr key={tenant.id} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="py-4 px-4">
-                              <div>
-                                <div className="font-medium text-gray-900">{tenant.name}</div>
-                                <div className="text-sm text-gray-500">{tenant.email}</div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4">
-                              <Badge variant="secondary" className="bg-gray-100 text-gray-700">
-                                {tenant.unit}
-                              </Badge>
-                            </td>
-                            <td className="py-4 px-4 text-sm text-gray-600">{tenant.contact}</td>
-                            <td className="py-4 px-4 font-medium">₱{tenant.monthlyRent.toLocaleString()}</td>
-                            <td className="py-4 px-4 text-sm text-gray-600">
-                              {tenant.contractStart} to {tenant.contractEnd}
-                            </td>
-                            <td className="py-4 px-4">
-                              <Badge 
-                                className={
-                                  tenant.status === 'active' 
-                                    ? 'bg-gray-800 text-white' 
-                                    : 'bg-gray-100 text-gray-700'
-                                }
-                              >
-                                {tenant.status}
-                              </Badge>
-                            </td>
-                            <td className="py-4 px-4">
-                              <span className={tenant.balance === 0 ? 'text-green-600' : 'text-red-600'}>
-                                ₱{tenant.balance.toLocaleString()}
-                              </span>
-                            </td>
-                            <td className="py-4 px-4">
-                              <div className="flex items-center space-x-2">
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                  {tenant.id === 3 ? <User className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </Button>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-700">
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
+                        {tenantsLoading ? (
+                          <tr>
+                            <td colSpan={8} className="py-8 text-center text-gray-500">
+                              Loading tenants...
                             </td>
                           </tr>
-                        ))}
+                        ) : filteredTenants.length === 0 ? (
+                          <tr>
+                            <td colSpan={8} className="py-8 text-center text-gray-500">
+                              {searchTerm ? 'No tenants found matching your search.' : 'No tenants found in your branch.'}
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredTenants.map((tenant) => (
+                            <tr key={tenant.id} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="py-4 px-4">
+                                <div>
+                                  <div className="font-medium text-gray-900">{tenant.name}</div>
+                                  <div className="text-sm text-gray-500">{tenant.email}</div>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4">
+                                <Badge variant="secondary" className="bg-gray-100 text-gray-700">
+                                  {tenant.unit}
+                                </Badge>
+                              </td>
+                              <td className="py-4 px-4 text-sm text-gray-600">{tenant.contact}</td>
+                              <td className="py-4 px-4 font-medium">₱{tenant.monthlyRent.toLocaleString()}</td>
+                              <td className="py-4 px-4 text-sm text-gray-600">
+                                {tenant.contractStart !== 'N/A' && tenant.contractEnd !== 'N/A' 
+                                  ? `${tenant.contractStart} to ${tenant.contractEnd}`
+                                  : 'No contract'
+                                }
+                              </td>
+                              <td className="py-4 px-4">
+                                <Badge 
+                                  className={
+                                    tenant.status === 'active' 
+                                      ? 'bg-gray-800 text-white' 
+                                      : 'bg-gray-100 text-gray-700'
+                                  }
+                                >
+                                  {tenant.status}
+                                </Badge>
+                              </td>
+                              <td className="py-4 px-4">
+                                <span className={tenant.balance === 0 ? 'text-green-600' : 'text-red-600'}>
+                                  ₱{tenant.balance.toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="py-4 px-4">
+                                <div className="flex items-center space-x-2">
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-700">
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -894,69 +1077,91 @@ const CaretakerDashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredPayments.map((payment) => (
-                          <tr key={payment.id} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="py-4 px-4">
-                              <div>
-                                <div className="font-medium text-gray-900">{payment.tenantName}</div>
-                                <div className="text-sm text-gray-500">({payment.unit})</div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4 font-medium">₱{payment.amount.toLocaleString()}</td>
-                            <td className="py-4 px-4">
-                              <div className="flex items-center space-x-2">
-                                <Calendar className="w-4 h-4 text-gray-400" />
-                                <span className="text-sm text-gray-600">{payment.period}</span>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4 text-sm text-gray-600">{payment.paymentDate}</td>
-                            <td className="py-4 px-4">
-                              <Badge 
-                                className={
-                                  payment.method === 'gcash' ? 'bg-blue-100 text-blue-800' :
-                                  payment.method === 'cash' ? 'bg-green-100 text-green-800' :
-                                  'bg-purple-100 text-purple-800'
-                                }
-                              >
-                                {payment.method}
-                              </Badge>
-                            </td>
-                            <td className="py-4 px-4">
-                              <div className="flex items-center space-x-2">
-                                {payment.status === 'confirmed' ? (
-                                  <CheckCircle className="w-4 h-4 text-green-600" />
-                                ) : (
-                                  <AlertCircle className="w-4 h-4 text-yellow-600" />
-                                )}
-                                <Badge 
-                                  className={
-                                    payment.status === 'confirmed' 
-                                      ? 'bg-gray-800 text-white' 
-                                      : 'bg-orange-100 text-orange-800'
-                                  }
-                                >
-                                  {payment.status}
-                                </Badge>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4">
-                              {payment.status === 'pending' ? (
-                                <div className="flex items-center space-x-2">
-                                  <Button variant="outline" size="sm" className="text-green-600 border-green-600 hover:bg-green-50">
-                                    <Check className="w-4 h-4 mr-1" />
-                                    Confirm
-                                  </Button>
-                                  <Button variant="outline" size="sm" className="text-red-600 border-red-600 hover:bg-red-50">
-                                    <X className="w-4 h-4 mr-1" />
-                                    Mark Failed
-                                  </Button>
-                                </div>
-                              ) : (
-                                <span className="text-gray-400 text-sm">-</span>
-                              )}
+                        {paymentsLoading ? (
+                          <tr>
+                            <td colSpan={7} className="py-8 text-center text-gray-500">
+                              Loading payments...
                             </td>
                           </tr>
-                        ))}
+                        ) : filteredPayments.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="py-8 text-center text-gray-500">
+                              {paymentFilter === 'all' 
+                                ? 'No payment records found.' 
+                                : `No ${paymentFilter} payments found.`}
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredPayments.map((payment) => (
+                            <tr key={payment.id} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="py-4 px-4">
+                                <div>
+                                  <div className="font-medium text-gray-900">{payment.tenantName}</div>
+                                  <div className="text-sm text-gray-500">({payment.unit})</div>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4 font-medium">₱{payment.amount.toLocaleString()}</td>
+                              <td className="py-4 px-4">
+                                <div className="flex items-center space-x-2">
+                                  <Calendar className="w-4 h-4 text-gray-400" />
+                                  <span className="text-sm text-gray-600">{payment.period}</span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4 text-sm text-gray-600">{payment.paymentDate}</td>
+                              <td className="py-4 px-4">
+                                <Badge 
+                                  className={
+                                    payment.method === 'gcash' || payment.method === 'g-cash' ? 'bg-blue-100 text-blue-800' :
+                                    payment.method === 'cash' ? 'bg-green-100 text-green-800' :
+                                    payment.method === 'bank transfer' || payment.method === 'bank-transfer' ? 'bg-purple-100 text-purple-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }
+                                >
+                                  {payment.method}
+                                </Badge>
+                              </td>
+                              <td className="py-4 px-4">
+                                <div className="flex items-center space-x-2">
+                                  {payment.status === 'confirmed' ? (
+                                    <CheckCircle className="w-4 h-4 text-green-600" />
+                                  ) : (
+                                    <Clock className="w-4 h-4 text-yellow-600" />
+                                  )}
+                                  <Badge 
+                                    className={
+                                      payment.status === 'confirmed' 
+                                        ? 'bg-green-800 text-white' 
+                                        : 'bg-yellow-600 text-white'
+                                    }
+                                  >
+                                    {payment.status}
+                                  </Badge>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4">
+                                <div className="flex items-center space-x-2">
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                  {payment.receipt_url ? (
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-8 w-8 p-0"
+                                      onClick={() => window.open(payment.receipt_url, '_blank')}
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </Button>
+                                  ) : (
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled>
+                                      <Download className="w-4 h-4 text-gray-400" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -987,7 +1192,7 @@ const CaretakerDashboard = () => {
                           <SelectValue placeholder="Choose tenant" />
                         </SelectTrigger>
                         <SelectContent>
-                          {tenants.map((tenant) => (
+                          {formattedTenants.map((tenant) => (
                             <SelectItem key={tenant.id} value={`${tenant.name} (${tenant.unit})`}>
                               {tenant.name} ({tenant.unit})
                             </SelectItem>
@@ -1146,7 +1351,7 @@ const CaretakerDashboard = () => {
                               All Tenants
                             </Label>
                           </div>
-                          {tenants.map((tenant) => (
+                          {formattedTenants.map((tenant) => (
                             <div key={tenant.id} className="flex items-center space-x-2">
                               <Checkbox
                                 id={`tenant-${tenant.id}`}

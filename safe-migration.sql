@@ -114,6 +114,22 @@ CREATE TABLE IF NOT EXISTS public.maintenance_requests (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS public.landlords (
+  landlord_id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  first_name VARCHAR(100) NOT NULL,
+  last_name VARCHAR(100) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  contact_number VARCHAR(20),
+  company_name VARCHAR(200),
+  branch VARCHAR(50),
+  address TEXT,
+  tax_id VARCHAR(50),
+  bank_account VARCHAR(100),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- 2. Create indexes if they don't exist
 CREATE INDEX IF NOT EXISTS idx_tenants_user_id ON public.tenants(user_id);
 CREATE INDEX IF NOT EXISTS idx_contracts_tenant_id ON public.contracts(tenant_id);
@@ -123,6 +139,8 @@ CREATE INDEX IF NOT EXISTS idx_payments_contract_id ON public.payments(contract_
 CREATE INDEX IF NOT EXISTS idx_notifications_tenant_id ON public.notifications(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_maintenance_requests_tenant_id ON public.maintenance_requests(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_maintenance_requests_unit_id ON public.maintenance_requests(unit_id);
+CREATE INDEX IF NOT EXISTS idx_landlords_user_id ON public.landlords(user_id);
+CREATE INDEX IF NOT EXISTS idx_landlords_branch ON public.landlords(branch);
 
 -- 3. Enable Row Level Security (safe to run multiple times)
 ALTER TABLE public.units ENABLE ROW LEVEL SECURITY;
@@ -131,6 +149,7 @@ ALTER TABLE public.contracts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.maintenance_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.landlords ENABLE ROW LEVEL SECURITY;
 
 -- 4. Drop existing policies and recreate them (safe approach)
 DROP POLICY IF EXISTS "Allow reading units" ON public.units;
@@ -140,10 +159,16 @@ DROP POLICY IF EXISTS "Allow tenant creation" ON public.tenants;
 DROP POLICY IF EXISTS "Users can view their own contracts" ON public.contracts;
 DROP POLICY IF EXISTS "Users can view their own payments" ON public.payments;
 DROP POLICY IF EXISTS "Users can create their own payments" ON public.payments;
+DROP POLICY IF EXISTS "Landlords can view payments from same branch" ON public.payments;
 DROP POLICY IF EXISTS "Users can view their own notifications" ON public.notifications;
 DROP POLICY IF EXISTS "Users can update their own notifications" ON public.notifications;
 DROP POLICY IF EXISTS "Users can view their own maintenance requests" ON public.maintenance_requests;
 DROP POLICY IF EXISTS "Users can create maintenance requests" ON public.maintenance_requests;
+DROP POLICY IF EXISTS "Landlords can view tenants from same branch" ON public.tenants;
+DROP POLICY IF EXISTS "Landlords can view their own data" ON public.landlords;
+DROP POLICY IF EXISTS "Landlords can update their own data" ON public.landlords;
+DROP POLICY IF EXISTS "Allow landlord creation" ON public.landlords;
+DROP POLICY IF EXISTS "Landlords can view same branch data" ON public.landlords;
 
 -- 5. Create all policies
 CREATE POLICY "Allow reading units" ON public.units FOR SELECT TO authenticated;
@@ -155,10 +180,43 @@ CREATE POLICY "Allow tenant creation" ON public.tenants FOR INSERT TO authentica
 CREATE POLICY "Users can view their own contracts" ON public.contracts FOR SELECT TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 CREATE POLICY "Users can view their own payments" ON public.payments FOR SELECT TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 CREATE POLICY "Users can create their own payments" ON public.payments FOR INSERT TO authenticated WITH CHECK (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
+
+-- Allow landlords/caretakers to view payments for tenants in the same branch
+CREATE POLICY "Landlords can view payments from same branch" ON public.payments FOR SELECT TO authenticated USING (
+  tenant_id IN (
+    SELECT tenant_id FROM public.tenants 
+    WHERE branch IN (
+      SELECT branch FROM public.landlords WHERE user_id = auth.uid()
+    )
+  )
+);
 CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 CREATE POLICY "Users can view their own maintenance requests" ON public.maintenance_requests FOR SELECT TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 CREATE POLICY "Users can create maintenance requests" ON public.maintenance_requests FOR INSERT TO authenticated WITH CHECK (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
+
+-- Allow landlords/caretakers to view tenants from the same branch
+CREATE POLICY "Landlords can view tenants from same branch" ON public.tenants FOR SELECT TO authenticated USING (
+  branch IN (
+    SELECT branch FROM public.landlords WHERE user_id = auth.uid()
+  )
+);
+
+-- Create RLS policies for landlords
+CREATE POLICY "Landlords can view their own data" 
+ON public.landlords FOR SELECT 
+TO authenticated 
+USING (user_id = auth.uid());
+
+CREATE POLICY "Landlords can update their own data" 
+ON public.landlords FOR UPDATE 
+TO authenticated 
+USING (user_id = auth.uid());
+
+CREATE POLICY "Allow landlord creation" 
+ON public.landlords FOR INSERT 
+TO authenticated 
+WITH CHECK (user_id = auth.uid());
 
 -- 6. Create or replace the function
 CREATE OR REPLACE FUNCTION public.handle_new_user()
