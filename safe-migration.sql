@@ -63,15 +63,32 @@ CREATE TABLE IF NOT EXISTS public.contracts (
 CREATE TABLE IF NOT EXISTS public.payments (
   payment_id SERIAL PRIMARY KEY,
   tenant_id INTEGER NOT NULL REFERENCES public.tenants(tenant_id) ON DELETE CASCADE,
-  contract_id INTEGER NOT NULL REFERENCES public.contracts(contract_id) ON DELETE CASCADE,
+  contract_id INTEGER REFERENCES public.contracts(contract_id) ON DELETE CASCADE,
   amount DECIMAL(10,2) NOT NULL,
   payment_date TIMESTAMP WITH TIME ZONE NOT NULL,
   payment_mode VARCHAR(50) NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'pending',
   transaction_id VARCHAR(100),
+  receipt_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add receipt_url column if it doesn't exist
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'payments' AND column_name = 'receipt_url') THEN
+        ALTER TABLE public.payments ADD COLUMN receipt_url TEXT;
+    END IF;
+    
+    -- Make contract_id nullable if it's currently NOT NULL
+    IF EXISTS (SELECT 1 FROM information_schema.columns 
+               WHERE table_name = 'payments' 
+               AND column_name = 'contract_id' 
+               AND is_nullable = 'NO') THEN
+        ALTER TABLE public.payments ALTER COLUMN contract_id DROP NOT NULL;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.notifications (
   notification_id SERIAL PRIMARY KEY,
@@ -122,6 +139,7 @@ DROP POLICY IF EXISTS "Tenants can update their own data" ON public.tenants;
 DROP POLICY IF EXISTS "Allow tenant creation" ON public.tenants;
 DROP POLICY IF EXISTS "Users can view their own contracts" ON public.contracts;
 DROP POLICY IF EXISTS "Users can view their own payments" ON public.payments;
+DROP POLICY IF EXISTS "Users can create their own payments" ON public.payments;
 DROP POLICY IF EXISTS "Users can view their own notifications" ON public.notifications;
 DROP POLICY IF EXISTS "Users can update their own notifications" ON public.notifications;
 DROP POLICY IF EXISTS "Users can view their own maintenance requests" ON public.maintenance_requests;
@@ -136,6 +154,7 @@ CREATE POLICY "Allow tenant creation" ON public.tenants FOR INSERT TO authentica
 
 CREATE POLICY "Users can view their own contracts" ON public.contracts FOR SELECT TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 CREATE POLICY "Users can view their own payments" ON public.payments FOR SELECT TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
+CREATE POLICY "Users can create their own payments" ON public.payments FOR INSERT TO authenticated WITH CHECK (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 CREATE POLICY "Users can view their own maintenance requests" ON public.maintenance_requests FOR SELECT TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
@@ -203,3 +222,68 @@ INSERT INTO public.units (unit_number, unit_type, monthly_rent, status) VALUES
 ('501', '2 Bedroom', 25000.00, 'occupied'),
 ('502', 'Studio', 15000.00, 'occupied')
 ON CONFLICT (unit_number) DO NOTHING;
+
+-- 9. Storage Bucket Setup
+-- ============================================
+-- IMPORTANT: You must manually create the "receipts" storage bucket in Supabase Dashboard
+-- ============================================
+-- 
+-- Steps to create the bucket:
+-- 1. Go to https://supabase.com/dashboard
+-- 2. Select your project
+-- 3. Click "Storage" in the left sidebar
+-- 4. Click "New bucket" button
+-- 5. Configure:
+--    - Name: "receipts" (exactly this name)
+--    - Public bucket: Yes (or configure policies manually)
+--    - File size limit: 10MB (or your preferred limit)
+--    - Allowed MIME types: image/*,application/pdf (optional)
+-- 6. Click "Create bucket"
+--
+-- After creating the bucket, set up storage policies:
+-- 1. Click on the "receipts" bucket
+-- 2. Go to "Policies" tab
+-- 3. Click "New Policy"
+-- 4. Create these policies:
+--
+--    Policy 1: "Allow authenticated users to upload"
+--    - Policy name: Allow authenticated users to upload receipts
+--    - Allowed operation: INSERT
+--    - Policy definition: (bucket_id = 'receipts')
+--    - Target roles: authenticated
+--
+--    Policy 2: "Allow authenticated users to read"
+--    - Policy name: Allow authenticated users to read receipts
+--    - Allowed operation: SELECT
+--    - Policy definition: (bucket_id = 'receipts')
+--    - Target roles: authenticated
+--
+-- Alternatively, if you made the bucket public, you may not need these policies.
+--
+-- SQL to create storage policies (run this AFTER creating the bucket):
+-- ============================================
+-- Run this SQL in Supabase SQL Editor after creating the "receipts" bucket:
+-- ============================================
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Allow authenticated users to upload receipts" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated users to read receipts" ON storage.objects;
+
+-- Create policy for authenticated users to upload receipts
+-- Files are stored as: receipts/{user-id}-{timestamp}.{ext}
+CREATE POLICY "Allow authenticated users to upload receipts"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'receipts'
+);
+
+-- Create policy for authenticated users to read receipts
+CREATE POLICY "Allow authenticated users to read receipts"
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'receipts'
+);

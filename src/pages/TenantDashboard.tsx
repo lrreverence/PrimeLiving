@@ -66,6 +66,7 @@ import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import EmailConfirmationBanner from '@/components/EmailConfirmationBanner';
+import qrCodeImage from '@/assets/78eb38c8-0172-40a9-97a4-42fb95af07a9.jpeg';
 import {
   Building2,
   User,
@@ -111,7 +112,7 @@ import {
 
 const TenantDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
-  const [paymentYear, setPaymentYear] = useState('2024');
+  const [paymentYear, setPaymentYear] = useState('all');
   const [tenantData, setTenantData] = useState<TenantData | null>(null);
   const [contractData, setContractData] = useState<ContractData | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -134,6 +135,13 @@ const TenantDashboard = () => {
   const [paymentAmount, setPaymentAmount] = useState(15000);
   const [paymentOption, setPaymentOption] = useState('full');
   const [qrGenerated, setQrGenerated] = useState(false);
+  const [paymentReference, setPaymentReference] = useState<string>('');
+  const [payments, setPayments] = useState<any[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
   const [maintenanceForm, setMaintenanceForm] = useState({
     category: '',
@@ -365,13 +373,21 @@ const TenantDashboard = () => {
     }
   }, [user]);
 
-  // Load maintenance requests when tenant data is available
+  // Load maintenance requests and payments when tenant data is available
   useEffect(() => {
     if (tenantData) {
       fetchMaintenanceRequests();
       fetchNotifications();
+      fetchPayments();
     }
   }, [tenantData]);
+
+  // Refetch payments when filters change
+  useEffect(() => {
+    if (tenantData) {
+      // Payments are already loaded, just re-filter
+    }
+  }, [paymentYear, paymentStatus]);
 
   // Keyboard shortcuts for quick actions
   useEffect(() => {
@@ -527,53 +543,74 @@ const TenantDashboard = () => {
     }
   };
 
-  const paymentRecords = [
-    {
-      id: 1,
-      date: '2024-08-15',
-      period: 'August 2024',
-      amount: 15000,
-      method: 'gcash',
-      reference: 'RENT-A101-789123',
-      status: 'confirmed'
-    },
-    {
-      id: 2,
-      date: '2024-07-15',
-      period: 'July 2024',
-      amount: 15000,
-      method: 'gcash',
-      reference: 'RENT-A101-654987',
-      status: 'confirmed'
-    },
-    {
-      id: 3,
-      date: '2024-06-15',
-      period: 'June 2024',
-      amount: 15000,
-      method: 'cash',
-      reference: 'RENT-A101-321456',
-      status: 'confirmed'
-    },
-    {
-      id: 4,
-      date: '2024-05-15',
-      period: 'May 2024',
-      amount: 15000,
-      method: 'bank transfer',
-      reference: 'RENT-A101-987654',
-      status: 'confirmed'
-    },
-    {
-      id: 5,
-      date: '2024-04-15',
-      period: 'April 2024',
-      amount: 15000,
-      method: 'gcash',
-      reference: 'RENT-A101-456789',
-      status: 'confirmed'
+  // Fetch payments from database
+  const fetchPayments = async () => {
+    if (!tenantData) return;
+
+    try {
+      setPaymentsLoading(true);
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('tenant_id', tenantData.tenant_id)
+        .order('payment_date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching payments:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load payment history.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (data) {
+        setPayments(data);
+      }
+    } catch (error) {
+      console.error('Error fetching payments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load payment history. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setPaymentsLoading(false);
     }
-  ];
+  };
+
+  // Filter payments based on year and status
+  const filteredPayments = payments.filter((payment) => {
+    const paymentYearValue = new Date(payment.payment_date).getFullYear().toString();
+    const matchesYear = paymentYear === 'all' || paymentYearValue === paymentYear;
+    const matchesStatus = paymentStatus === 'All Status' || 
+      (paymentStatus === 'Confirmed' && (payment.status === 'confirmed' || payment.status === 'completed' || payment.status === 'paid')) ||
+      (paymentStatus === 'Pending' && payment.status === 'pending');
+    
+    return matchesYear && matchesStatus;
+  });
+
+  // Format payment data for display
+  const paymentRecords = filteredPayments.map((payment) => {
+    const paymentDate = new Date(payment.payment_date);
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    const period = `${monthNames[paymentDate.getMonth()]} ${paymentDate.getFullYear()}`;
+    
+    return {
+      id: payment.payment_id,
+      date: paymentDate.toISOString().split('T')[0],
+      period: period,
+      amount: parseFloat(payment.amount),
+      method: payment.payment_mode.toLowerCase(),
+      reference: payment.transaction_id || `RENT-${payment.payment_id}`,
+      status: (payment.status === 'confirmed' || payment.status === 'completed' || payment.status === 'paid') 
+        ? 'confirmed' 
+        : payment.status || 'pending',
+      receipt_url: payment.receipt_url
+    };
+  });
 
   const getMethodBadge = (method: string) => {
     switch (method) {
@@ -589,24 +626,44 @@ const TenantDashboard = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'confirmed':
+      case 'completed':
+      case 'paid':
         return (
           <div className="flex items-center space-x-2">
             <CheckCircle className="w-4 h-4 text-green-600" />
             <Badge className="bg-green-800 text-white">confirmed</Badge>
           </div>
         );
+      case 'pending':
+        return (
+          <div className="flex items-center space-x-2">
+            <Clock className="w-4 h-4 text-yellow-600" />
+            <Badge className="bg-yellow-600 text-white">pending</Badge>
+          </div>
+        );
       default:
-        return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
+        return <Badge className="bg-gray-100 text-gray-800">{status || 'unknown'}</Badge>;
     }
   };
 
   const handleDownloadReceipt = (recordId: number) => {
-    toast({
-      title: "Receipt Downloaded",
-      description: `Receipt for payment #${recordId} has been downloaded.`,
-    });
+    const payment = payments.find(p => p.payment_id === recordId);
+    if (payment?.receipt_url) {
+      // Open receipt URL in new tab
+      window.open(payment.receipt_url, '_blank');
+      toast({
+        title: "Receipt Opened",
+        description: "Receipt has been opened in a new tab.",
+      });
+    } else {
+      toast({
+        title: "Receipt Not Available",
+        description: "Receipt for this payment is not available.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDownloadAll = () => {
@@ -617,6 +674,10 @@ const TenantDashboard = () => {
   };
 
   const handleGenerateQR = () => {
+    // Generate a stable reference number
+    const unitNumber = contractData?.units?.unit_number || '000';
+    const reference = `RENT-${unitNumber}-${Math.floor(Math.random() * 1000000)}`;
+    setPaymentReference(reference);
     setQrGenerated(true);
     toast({
       title: "QR Code Generated",
@@ -624,9 +685,151 @@ const TenantDashboard = () => {
     });
   };
 
+  const handleDonePaying = () => {
+    setReceiptModalOpen(true);
+  };
+
+  const handleReceiptFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      console.log('File selected:', file.name, file.size, file.type);
+      setReceiptFile(file);
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReceiptPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      console.log('No file selected');
+      setReceiptFile(null);
+      setReceiptPreview(null);
+    }
+  };
+
+  const handleUploadReceipt = async () => {
+    console.log('Upload receipt - File:', receiptFile, 'User:', user, 'Tenant:', tenantData, 'Contract:', contractData);
+    
+    if (!receiptFile) {
+      console.error('No receipt file selected');
+      toast({
+        title: "Missing Information",
+        description: "Please select a receipt file to upload.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!user) {
+      toast({
+        title: "Authentication Error",
+        description: "Please log in to upload receipts.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!tenantData) {
+      toast({
+        title: "Missing Information",
+        description: "Tenant information not found. Please refresh the page.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setUploadingReceipt(true);
+    try {
+      // Upload file to Supabase storage
+      const fileExt = receiptFile.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `receipts/${fileName}`;
+
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from('receipts')
+        .upload(filePath, receiptFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        // Check if bucket doesn't exist
+        if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('not found')) {
+          throw new Error('Receipts storage bucket not found. Please create a "receipts" bucket in Supabase Storage.');
+        }
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('receipts')
+        .getPublicUrl(filePath);
+
+      const receiptUrl = urlData.publicUrl;
+
+      // Get tenant record
+      const { data: tenantRecord, error: tenantError } = await supabase
+        .from('tenants')
+        .select('tenant_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (tenantError || !tenantRecord) {
+        throw new Error('Tenant record not found');
+      }
+
+      // Create payment record with receipt URL
+      // Note: contract_id is optional - some payments may not have an active contract
+      const paymentData: any = {
+        tenant_id: tenantRecord.tenant_id,
+        amount: paymentAmount,
+        payment_date: new Date().toISOString(),
+        payment_mode: paymentMethod,
+        status: 'pending',
+        transaction_id: paymentReference || `RENT-${contractData?.units?.unit_number || tenantData.branch || '000'}-${Date.now()}`,
+        receipt_url: receiptUrl
+      };
+
+      // Only add contract_id if contract data exists
+      if (contractData?.contract_id) {
+        paymentData.contract_id = contractData.contract_id;
+      }
+
+      const { error: paymentError } = await supabase
+        .from('payments')
+        .insert(paymentData);
+
+      if (paymentError) {
+        throw new Error(`Failed to save payment: ${paymentError.message}`);
+      }
+
+      toast({
+        title: "Receipt Uploaded",
+        description: "Your payment receipt has been uploaded successfully and is pending review.",
+      });
+
+      // Reset form
+      setReceiptFile(null);
+      setReceiptPreview(null);
+      setReceiptModalOpen(false);
+      setQrGenerated(false);
+      
+      // Refresh payments list
+      await fetchPayments();
+    } catch (error: any) {
+      console.error('Error uploading receipt:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "There was an error uploading your receipt. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setUploadingReceipt(false);
+    }
+  };
+
   const handleCopyReference = () => {
-    const unitNumber = contractData?.units?.unit_number || '000';
-    const reference = `RENT-${unitNumber}-${Math.floor(Math.random() * 1000000)}`;
+    const reference = paymentReference || `RENT-${contractData?.units?.unit_number || '000'}-${Math.floor(Math.random() * 1000000)}`;
     navigator.clipboard.writeText(reference);
     toast({
       title: "Reference Copied",
@@ -1764,11 +1967,16 @@ const TenantDashboard = () => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-600">Current Balance</p>
-                        <p className="text-2xl font-bold text-green-600">₱0</p>
+                        <p className="text-sm font-medium text-gray-600">Pending Payments</p>
+                        <p className="text-2xl font-bold text-yellow-600">
+                          ₱{payments
+                            .filter(p => p.status === 'pending')
+                            .reduce((sum, p) => sum + parseFloat(p.amount), 0)
+                            .toLocaleString()}
+                        </p>
                       </div>
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                        <DollarSign className="w-6 h-6 text-green-600" />
+                      <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                        <Clock className="w-6 h-6 text-yellow-600" />
                       </div>
                     </div>
                   </CardContent>
@@ -1779,8 +1987,22 @@ const TenantDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600">Next Due Date</p>
-                        <p className="text-2xl font-bold text-red-600">-350 days</p>
-                        <p className="text-xs text-gray-500">2024-09-15</p>
+                        {contractData?.end_date ? (
+                          <>
+                            <p className={`text-2xl font-bold ${
+                              new Date(contractData.end_date) > new Date() 
+                                ? 'text-red-600' 
+                                : 'text-green-600'
+                            }`}>
+                              {Math.ceil((new Date(contractData.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(contractData.end_date).toLocaleDateString()}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-2xl font-bold text-gray-400">-</p>
+                        )}
                       </div>
                       <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                         <Calendar className="w-6 h-6 text-blue-600" />
@@ -1793,8 +2015,22 @@ const TenantDashboard = () => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-600">Total Paid (2024)</p>
-                        <p className="text-2xl font-bold text-gray-900">₱75,000</p>
+                        <p className="text-sm font-medium text-gray-600">
+                          Total Paid {paymentYear !== 'all' ? `(${paymentYear})` : '(All Time)'}
+                        </p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          ₱{payments
+                            .filter(p => {
+                              if (paymentYear !== 'all') {
+                                const year = new Date(p.payment_date).getFullYear().toString();
+                                return year === paymentYear;
+                              }
+                              return true;
+                            })
+                            .filter(p => p.status === 'confirmed')
+                            .reduce((sum, p) => sum + parseFloat(p.amount), 0)
+                            .toLocaleString()}
+                        </p>
                       </div>
                       <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                         <TrendingUp className="w-6 h-6 text-purple-600" />
@@ -1808,7 +2044,13 @@ const TenantDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600">Payment Status</p>
-                        <Badge className="bg-gray-800 text-white mt-1">current</Badge>
+                        <Badge className={`mt-1 ${
+                          payments.filter(p => p.status === 'pending').length > 0
+                            ? 'bg-yellow-600 text-white'
+                            : 'bg-green-600 text-white'
+                        }`}>
+                          {payments.filter(p => p.status === 'pending').length > 0 ? 'pending' : 'current'}
+                        </Badge>
                       </div>
                       <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                         <CheckCircle className="w-6 h-6 text-green-600" />
@@ -1831,9 +2073,12 @@ const TenantDashboard = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="2024">2024</SelectItem>
-                        <SelectItem value="2023">2023</SelectItem>
-                        <SelectItem value="2022">2022</SelectItem>
+                        <SelectItem value="all">All Years</SelectItem>
+                        {Array.from(new Set(payments.map(p => new Date(p.payment_date).getFullYear())))
+                          .sort((a, b) => b - a)
+                          .map(year => (
+                            <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                     <Select value={paymentStatus} onValueChange={setPaymentStatus}>
@@ -1865,7 +2110,20 @@ const TenantDashboard = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {paymentRecords.map((record) => (
+                          {paymentsLoading ? (
+                            <tr>
+                              <td colSpan={7} className="py-8 text-center text-gray-500">
+                                Loading payment history...
+                              </td>
+                            </tr>
+                          ) : paymentRecords.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="py-8 text-center text-gray-500">
+                                No payment records found
+                              </td>
+                            </tr>
+                          ) : (
+                            paymentRecords.map((record) => (
                             <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50">
                               <td className="py-4 px-6">
                                 <div className="flex items-center space-x-2">
@@ -1893,7 +2151,8 @@ const TenantDashboard = () => {
                                 </Button>
                               </td>
                             </tr>
-                          ))}
+                            ))
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -2156,7 +2415,7 @@ const TenantDashboard = () => {
                         <div className="flex justify-between">
                           <span className="text-gray-600">Reference Number:</span>
                           <span className="font-medium">
-                            RENT-{contractData?.units?.unit_number || '000'}-{Math.floor(Math.random() * 1000000)}
+                            {paymentReference || `RENT-${contractData?.units?.unit_number || '000'}-${Math.floor(Math.random() * 1000000)}`}
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -2196,16 +2455,12 @@ const TenantDashboard = () => {
                       <>
                         {/* QR Code Display */}
                         <div className="flex justify-center">
-                          <div className="w-64 h-64 bg-white border-2 border-gray-300 rounded-lg flex items-center justify-center">
-                            <div className="w-56 h-56 bg-black rounded grid grid-cols-8 grid-rows-8 gap-1">
-                              {/* Simulated QR Code Pattern */}
-                              {Array.from({ length: 64 }, (_, i) => (
-                                <div
-                                  key={i}
-                                  className={`bg-white ${Math.random() > 0.5 ? 'bg-black' : 'bg-white'}`}
-                                />
-                              ))}
-                            </div>
+                          <div className="w-64 h-64 bg-white border-2 border-gray-300 rounded-lg flex items-center justify-center p-4">
+                            <img 
+                              src={qrCodeImage} 
+                              alt="Payment QR Code" 
+                              className="w-full h-full object-contain"
+                            />
                           </div>
                         </div>
 
@@ -2239,7 +2494,7 @@ const TenantDashboard = () => {
                             <span className="text-sm text-gray-600">Reference:</span>
                             <div className="flex items-center space-x-2">
                               <span className="font-medium">
-                                RENT-{contractData?.units?.unit_number || '000'}-{Math.floor(Math.random() * 1000000)}
+                                {paymentReference || `RENT-${contractData?.units?.unit_number || '000'}-${Math.floor(Math.random() * 1000000)}`}
                               </span>
                               <Button
                                 variant="ghost"
@@ -2267,10 +2522,19 @@ const TenantDashboard = () => {
                         </div>
 
                         {/* Success Message */}
-                        <div className="flex items-center justify-end space-x-2 text-green-600">
+                        <div className="flex items-center justify-end space-x-2 text-green-600 mb-4">
                           <CheckCircle className="w-5 h-5" />
                           <span className="text-sm font-medium">QR Code generated successfully!</span>
                         </div>
+
+                        {/* Done Paying Button */}
+                        <Button
+                          onClick={handleDonePaying}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center space-x-2"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Done Paying</span>
+                        </Button>
                       </>
                     ) : (
                       <div className="text-center py-12">
@@ -3171,6 +3435,109 @@ const TenantDashboard = () => {
                 {editLoading ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receipt Upload Modal */}
+      <Dialog open={receiptModalOpen} onOpenChange={setReceiptModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upload Payment Receipt</DialogTitle>
+            <DialogDescription>
+              Upload a photo or screenshot of your payment receipt for verification.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* File Upload */}
+            <div className="space-y-2">
+              <Label htmlFor="receipt">Receipt File</Label>
+              <Input
+                id="receipt"
+                type="file"
+                accept="image/*,.pdf"
+                onChange={handleReceiptFileChange}
+                className="cursor-pointer"
+                key={receiptModalOpen ? 'open' : 'closed'}
+              />
+              <p className="text-xs text-gray-500">
+                Accepted formats: JPG, PNG, PDF (Max 10MB)
+              </p>
+              {receiptFile && (
+                <p className="text-xs text-green-600">
+                  Selected: {receiptFile.name} ({(receiptFile.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+              )}
+            </div>
+
+            {/* Preview */}
+            {receiptPreview && (
+              <div className="space-y-2">
+                <Label>Preview</Label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 flex items-center justify-center">
+                  {receiptFile?.type.startsWith('image/') ? (
+                    <img
+                      src={receiptPreview}
+                      alt="Receipt preview"
+                      className="max-h-64 max-w-full object-contain rounded"
+                    />
+                  ) : (
+                    <div className="text-center">
+                      <FileText className="w-16 h-16 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600">{receiptFile?.name}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Payment Details Summary */}
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Amount:</span>
+                <span className="text-sm font-semibold">₱{paymentAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Payment Method:</span>
+                <span className="text-sm font-semibold">{paymentMethod}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Reference:</span>
+                <span className="text-sm font-semibold">
+                  {paymentReference || `RENT-${contractData?.units?.unit_number || '000'}-${Date.now().toString().slice(-6)}`}
+                </span>
+              </div>
+            </div>
+
+            {/* Important Note */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-xs text-yellow-800">
+                <strong>Note:</strong> Please ensure your receipt clearly shows the transaction details, 
+                amount, and reference number for faster processing.
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-4 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setReceiptFile(null);
+                setReceiptPreview(null);
+                setReceiptModalOpen(false);
+              }}
+              disabled={uploadingReceipt}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUploadReceipt}
+              disabled={!receiptFile || uploadingReceipt}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {uploadingReceipt ? 'Uploading...' : 'Upload Receipt'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

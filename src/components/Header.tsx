@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Building2, User, LogOut } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import AuthModal from "./AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,11 +15,35 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const Header = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   
   const handleLogout = () => {
     logout();
+  };
+
+  const getDashboardRoute = () => {
+    if (!user) return '/';
+    const userRole = user.user_metadata?.role;
+    const uiRole = user.user_metadata?.uiRole;
+    
+    // Check if user is caretaker/admin (landlord or caretaker)
+    if (uiRole === 'caretaker' || userRole === 'landlord' || userRole === 'caretaker') {
+      return '/caretaker-dashboard';
+    }
+    // Default to tenant dashboard
+    return '/tenant-dashboard';
+  };
+
+  const handleDashboardClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const route = getDashboardRoute();
+    console.log('Dashboard click - User:', user?.email);
+    console.log('Dashboard click - Role:', user?.user_metadata?.role);
+    console.log('Dashboard click - UI Role:', user?.user_metadata?.uiRole);
+    console.log('Dashboard click - Navigating to:', route);
+    navigate(route);
   };
   
   return (
@@ -56,6 +80,20 @@ const Header = () => {
           >
             Contact
           </Link>
+          {user && (
+            <button
+              type="button"
+              onClick={handleDashboardClick}
+              className={`transition-colors cursor-pointer ${
+                location.pathname === '/caretaker-dashboard' || 
+                location.pathname === '/tenant-dashboard'
+                  ? 'text-primary' 
+                  : 'text-foreground hover:text-primary'
+              }`}
+            >
+              Dashboard
+            </button>
+          )}
         </nav>
 
         {/* Authentication Section */}

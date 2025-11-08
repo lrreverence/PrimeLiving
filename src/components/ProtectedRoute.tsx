@@ -31,12 +31,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       // Only redirect if user has wrong role, don't redirect if no user (let them see login)
       if (!hasCorrectRole) {
         // Redirect to appropriate dashboard based on user's actual role
-        if (uiRole === 'caretaker' || userRole === 'landlord') {
+        if (uiRole === 'caretaker' || userRole === 'landlord' || userRole === 'caretaker') {
           navigate('/caretaker-dashboard');
         } else if (uiRole === 'tenant' || userRole === 'tenant') {
           navigate('/tenant-dashboard');
         } else {
-          navigate(redirectTo);
+          // If no role is set and trying to access caretaker dashboard, redirect to tenant
+          if (requiredRole === 'caretaker') {
+            navigate('/tenant-dashboard');
+          }
+          // If trying to access tenant dashboard without role, allow it (handled in render)
         }
       }
     }
@@ -70,7 +74,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     (requiredRole === 'caretaker' && userRole === 'landlord') ||
     (requiredRole === 'landlord' && uiRole === 'caretaker');
 
+  // If user has correct role, allow access
   if (hasCorrectRole) {
+    return <>{children}</>;
+  }
+
+  // If no role is set and trying to access tenant dashboard, allow access
+  if (requiredRole === 'tenant' && !userRole && !uiRole) {
     return <>{children}</>;
   }
 
