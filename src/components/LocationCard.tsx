@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin } from "lucide-react";
+import { MapPin, ExternalLink } from "lucide-react";
 
 interface LocationCardProps {
   name: string;
@@ -12,6 +12,7 @@ interface LocationCardProps {
   publicTransport: string;
   shoppingMall: string;
   onExplore: () => void;
+  coordinates?: [number, number]; // [latitude, longitude]
 }
 
 const LocationCard = ({
@@ -23,7 +24,15 @@ const LocationCard = ({
   publicTransport,
   shoppingMall,
   onExplore,
+  coordinates,
 }: LocationCardProps) => {
+  const openInMaps = () => {
+    if (coordinates) {
+      // Open in OpenStreetMap
+      const [lat, lng] = coordinates;
+      window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15`, '_blank');
+    }
+  };
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
       <div className="relative">
@@ -62,13 +71,25 @@ const LocationCard = ({
           </div>
         </div>
         
-        <Button 
-          variant="outline" 
-          className="w-full"
-          onClick={onExplore}
-        >
-          Explore Location
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            className="flex-1"
+            onClick={onExplore}
+          >
+            View on Map
+          </Button>
+          {coordinates && (
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={openInMaps}
+              title="Open in OpenStreetMap"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
