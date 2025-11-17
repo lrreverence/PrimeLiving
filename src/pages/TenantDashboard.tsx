@@ -580,6 +580,61 @@ const TenantDashboard = () => {
     }
   };
 
+  // Calculate next payment due date
+  const calculateNextPaymentDue = () => {
+    if (!contractData?.start_date) return null;
+    
+    const startDate = new Date(contractData.start_date);
+    const dueDay = startDate.getDate(); // Day of month when payment is due
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    
+    // Calculate next due date
+    let nextDueDate = new Date(currentYear, currentMonth, dueDay);
+    
+    // If the due date has passed this month, move to next month
+    if (nextDueDate < today) {
+      nextDueDate = new Date(currentYear, currentMonth + 1, dueDay);
+    }
+    
+    // Calculate days until due date
+    const daysUntilDue = Math.ceil((nextDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    return {
+      date: nextDueDate,
+      daysUntilDue: daysUntilDue
+    };
+  };
+
+  // Calculate current balance
+  const calculateCurrentBalance = () => {
+    if (!contractData?.start_date || !contractData?.units?.monthly_rent) return 0;
+    
+    const startDate = new Date(contractData.start_date);
+    const today = new Date();
+    const monthlyRent = contractData.units.monthly_rent;
+    
+    // Calculate number of full months since contract start
+    // This counts months that should have been fully paid
+    let monthsSinceStart = (today.getFullYear() - startDate.getFullYear()) * 12 + 
+                            (today.getMonth() - startDate.getMonth());
+    
+    // If we're still in the first month, no payment is due yet
+    if (monthsSinceStart < 0) monthsSinceStart = 0;
+    
+    // Expected total payments (full months since start * monthly rent)
+    const expectedTotal = monthsSinceStart * monthlyRent;
+    
+    // Calculate total confirmed payments
+    const confirmedPayments = payments
+      .filter(p => p.status === 'confirmed' || p.status === 'completed' || p.status === 'paid')
+      .reduce((sum, p) => sum + parseFloat(p.amount.toString()), 0);
+    
+    // Balance = Expected - Paid (positive means owed, negative means overpaid)
+    return expectedTotal - confirmedPayments;
+  };
+
   // Filter payments based on year and status
   const filteredPayments = payments.filter((payment) => {
     const paymentYearValue = new Date(payment.payment_date).getFullYear().toString();
@@ -1335,7 +1390,18 @@ const TenantDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600">Next Payment Due</p>
-                        <p className="text-2xl font-bold text-red-600">-350 days</p>
+                        {(() => {
+                          const nextPayment = calculateNextPaymentDue();
+                          if (!nextPayment) {
+                            return <p className="text-2xl font-bold text-gray-400">-</p>;
+                          }
+                          const isOverdue = nextPayment.daysUntilDue < 0;
+                          return (
+                            <p className={`text-2xl font-bold ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
+                              {isOverdue ? '-' : ''}{Math.abs(nextPayment.daysUntilDue)} {Math.abs(nextPayment.daysUntilDue) === 1 ? 'day' : 'days'}
+                            </p>
+                          );
+                        })()}
                       </div>
                       <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
                         <Calendar className="w-6 h-6 text-red-600" />
@@ -1350,7 +1416,7 @@ const TenantDashboard = () => {
                       <div>
                         <p className="text-sm font-medium text-gray-600">Monthly Rent</p>
                         <p className="text-2xl font-bold text-gray-900">
-                          ₱{contractData?.units?.monthly_rent?.toLocaleString() || '15,000'}
+                          ₱{contractData?.units?.monthly_rent?.toLocaleString() || '0'}
                         </p>
                       </div>
                       <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -1365,10 +1431,22 @@ const TenantDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600">Current Balance</p>
-                        <p className="text-2xl font-bold text-green-600">₱0</p>
+                        {(() => {
+                          const balance = calculateCurrentBalance();
+                          const isPositive = balance >= 0;
+                          return (
+                            <p className={`text-2xl font-bold ${isPositive ? 'text-red-600' : 'text-green-600'}`}>
+                              {isPositive ? '' : '-'}₱{Math.abs(balance).toLocaleString()}
+                            </p>
+                          );
+                        })()}
                       </div>
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                        <CheckCircle className="w-6 h-6 text-green-600" />
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                        calculateCurrentBalance() >= 0 ? 'bg-red-100' : 'bg-green-100'
+                      }`}>
+                        <CheckCircle className={`w-6 h-6 ${
+                          calculateCurrentBalance() >= 0 ? 'text-red-600' : 'text-green-600'
+                        }`} />
                       </div>
                     </div>
                   </CardContent>
