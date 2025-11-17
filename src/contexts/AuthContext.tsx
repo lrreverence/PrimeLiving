@@ -7,7 +7,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   login: (email: string, password: string, role?: string) => Promise<{ success: boolean; error?: string }>;
-  signup: (name: string, email: string, password: string, phone?: string, role?: string, branch?: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (name: string, email: string, password: string, phone?: string, role?: string, branch?: string, validIdUrl?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   resendConfirmation: (email: string) => Promise<{ success: boolean; error?: string }>;
   isLoading: boolean;
@@ -79,7 +79,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signup = async (name: string, email: string, password: string, phone?: string, role?: string, branch?: string): Promise<{ success: boolean; error?: string }> => {
+  const signup = async (name: string, email: string, password: string, phone?: string, role?: string, branch?: string, validIdUrl?: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
       const redirectUrl = `${window.location.origin}/`;
@@ -98,12 +98,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             role: dbRole, // Store as 'landlord' in database
             uiRole: role, // Keep original UI role for reference
             branch,
+            validIdUrl, // Store valid ID URL in user metadata temporarily
           }
         }
       });
 
       if (error) {
         return { success: false, error: error.message };
+      }
+
+      // If tenant and valid ID URL provided, update tenant record
+      if (role === 'tenant' && validIdUrl && data.user) {
+        // Wait a bit for the trigger to create the tenant record
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Update tenant record with valid ID URL
+        const { error: updateError } = await supabase
+          .from('tenants')
+          .update({
+            valid_id_url: validIdUrl,
+            valid_id_uploaded_at: new Date().toISOString()
+          })
+          .eq('user_id', data.user.id);
+
+        if (updateError) {
+          console.error('Error updating tenant with valid ID:', updateError);
+          // Don't fail signup if update fails, but log it
+        }
       }
 
       // Store UI role in localStorage for redirection

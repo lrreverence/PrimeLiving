@@ -120,6 +120,8 @@ const CaretakerDashboard = () => {
       contractEnd: contract?.end_date ? new Date(contract.end_date).toISOString().split('T')[0] : 'N/A',
       status: contract?.status || 'inactive',
       balance: 0,
+      validIdUrl: tenant.valid_id_url || undefined,
+      validIdUploadedAt: tenant.valid_id_uploaded_at || undefined,
       tenantData: tenant
     };
   });
@@ -347,7 +349,7 @@ const CaretakerDashboard = () => {
       const tenant = formattedTenants.find(t => t.unit === unitNumber);
       
       if (!tenant) {
-        toast({
+    toast({
           title: "Error",
           description: "Tenant not found.",
           variant: "destructive"
@@ -389,8 +391,8 @@ const CaretakerDashboard = () => {
       if (newDocument) {
         generatePDF(newDocument);
         await fetchDocuments();
-        toast({
-          title: "Document Generated",
+    toast({
+      title: "Document Generated",
           description: `${selectedDocumentType} for ${selectedTenant} has been generated and downloaded.`,
         });
       }
@@ -493,20 +495,20 @@ const CaretakerDashboard = () => {
         toast({
           title: "Error",
           description: `Failed to send notifications: ${error.message}`,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      toast({
-        title: "Notification Sent",
-        description: `Notification sent to ${tenantIds.length} tenant(s).`,
+        variant: "destructive"
       });
+      return;
+    }
 
-      setSubject('');
-      setMessage('');
-      setSelectedRecipients([]);
-      setScheduleDate('');
+    toast({
+      title: "Notification Sent",
+        description: `Notification sent to ${tenantIds.length} tenant(s).`,
+    });
+
+    setSubject('');
+    setMessage('');
+    setSelectedRecipients([]);
+    setScheduleDate('');
     } catch (error) {
       console.error('Error sending notification:', error);
       toast({

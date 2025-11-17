@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { UploadValidId } from '@/components/UploadValidId';
 
 // Type definitions - made flexible to handle schema variations
 interface TenantData {
@@ -18,6 +19,8 @@ interface TenantData {
   emergency_contact_relationship?: string;
   occupation?: string;
   company?: string;
+  valid_id_url?: string;
+  valid_id_uploaded_at?: string;
   created_at?: string;
   updated_at?: string;
   [key: string]: any; // Allow additional properties
@@ -1345,6 +1348,20 @@ const TenantDashboard = () => {
         </div>
       )}
 
+      {/* Check if Valid ID is uploaded */}
+      {tenantData && !tenantData.valid_id_url && user && tenantData.tenant_id && (
+        <UploadValidId
+          tenantId={tenantData.tenant_id}
+          userId={user.id}
+          onUploadSuccess={() => {
+            // Refresh tenant data after upload
+            fetchTenantData();
+          }}
+        />
+      )}
+
+      {/* Show dashboard only if Valid ID is uploaded or loading */}
+      {(!tenantData || tenantData.valid_id_url || loading) && (
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Navigation */}
@@ -1552,6 +1569,120 @@ const TenantDashboard = () => {
                           </div>
                         </Button>
                       ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* About Us Section */}
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">About Us</h3>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Business Permit</CardTitle>
+                    <p className="text-sm text-gray-600 mt-1">Official business permit documentation</p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                      <FileText className="w-16 h-16 text-gray-400 mb-4" />
+                      <div className="text-center space-y-2">
+                        <h4 className="font-semibold text-gray-900">Prime Living Business Permit</h4>
+                        <p className="text-sm text-gray-600">Business Permit No. 2024-001234</p>
+                        <p className="text-sm text-gray-600">Issued: January 1, 2024</p>
+                        <p className="text-sm text-gray-600">Valid Until: December 31, 2024</p>
+                        <div className="mt-4 w-full max-w-md h-64 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center">
+                          <div className="text-center p-4">
+                            <Building2 className="w-20 h-20 text-gray-300 mx-auto mb-4" />
+                            <p className="text-lg font-bold text-gray-700 mb-2">BUSINESS PERMIT</p>
+                            <p className="text-sm text-gray-600 mb-1">Prime Living Properties</p>
+                            <p className="text-xs text-gray-500">123 Main Street, Metro Manila</p>
+                            <p className="text-xs text-gray-500 mt-2">Permit No: 2024-001234</p>
+                            <p className="text-xs text-gray-500">Valid: Jan 1, 2024 - Dec 31, 2024</p>
+                          </div>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          className="mt-4"
+                          onClick={() => {
+                            // Create a simple PDF-like view
+                            const printWindow = window.open('', '_blank');
+                            if (printWindow) {
+                              printWindow.document.write(`
+                                <!DOCTYPE html>
+                                <html>
+                                  <head>
+                                    <title>Business Permit - Prime Living</title>
+                                    <style>
+                                      body {
+                                        font-family: Arial, sans-serif;
+                                        padding: 40px;
+                                        max-width: 800px;
+                                        margin: 0 auto;
+                                      }
+                                      .header {
+                                        text-align: center;
+                                        border-bottom: 3px solid #000;
+                                        padding-bottom: 20px;
+                                        margin-bottom: 30px;
+                                      }
+                                      .content {
+                                        line-height: 1.8;
+                                      }
+                                      .info-row {
+                                        margin: 15px 0;
+                                        padding: 10px;
+                                        background: #f5f5f5;
+                                        border-left: 4px solid #000;
+                                      }
+                                      .label {
+                                        font-weight: bold;
+                                        display: inline-block;
+                                        width: 200px;
+                                      }
+                                    </style>
+                                  </head>
+                                  <body>
+                                    <div class="header">
+                                      <h1>BUSINESS PERMIT</h1>
+                                      <h2>Republic of the Philippines</h2>
+                                    </div>
+                                    <div class="content">
+                                      <div class="info-row">
+                                        <span class="label">Business Name:</span> Prime Living Properties
+                                      </div>
+                                      <div class="info-row">
+                                        <span class="label">Business Address:</span> 123 Main Street, Metro Manila
+                                      </div>
+                                      <div class="info-row">
+                                        <span class="label">Permit Number:</span> 2024-001234
+                                      </div>
+                                      <div class="info-row">
+                                        <span class="label">Issued Date:</span> January 1, 2024
+                                      </div>
+                                      <div class="info-row">
+                                        <span class="label">Valid Until:</span> December 31, 2024
+                                      </div>
+                                      <div class="info-row">
+                                        <span class="label">Business Type:</span> Real Estate Rental Services
+                                      </div>
+                                      <div style="margin-top: 40px; text-align: center; border-top: 2px solid #ccc; padding-top: 20px;">
+                                        <p>This is to certify that the above-named business is authorized to operate in accordance with local business regulations.</p>
+                                        <p style="margin-top: 30px;"><strong>Issued by:</strong> Local Government Unit</p>
+                                        <p><strong>Date:</strong> January 1, 2024</p>
+                                      </div>
+                                    </div>
+                                  </body>
+                                </html>
+                              `);
+                              printWindow.document.close();
+                              printWindow.print();
+                            }
+                          }}
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          View/Download Permit
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -3243,6 +3374,7 @@ const TenantDashboard = () => {
           </TabsContent>
         </Tabs>
       </main>
+      )}
 
       {/* Maintenance Request Modal */}
       <Dialog open={maintenanceModalOpen} onOpenChange={setMaintenanceModalOpen}>
