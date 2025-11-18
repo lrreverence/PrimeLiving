@@ -156,11 +156,11 @@ export const NotificationsTab = ({
                     <div key={tenant.id} className="flex items-center space-x-2">
                       <Checkbox
                         id={`tenant-${tenant.id}`}
-                        checked={selectedRecipients.includes(`${tenant.name} (${tenant.unit})`)}
-                        onCheckedChange={(checked) => onRecipientChange(`${tenant.name} (${tenant.unit})`, checked as boolean)}
+                        checked={selectedRecipients.includes(`${tenant.name}${tenant.unit !== 'N/A' ? ` (${tenant.unit})` : ''}`)}
+                        onCheckedChange={(checked) => onRecipientChange(`${tenant.name}${tenant.unit !== 'N/A' ? ` (${tenant.unit})` : ''}`, checked as boolean)}
                       />
                       <Label htmlFor={`tenant-${tenant.id}`} className="text-sm font-normal">
-                        {tenant.name} ({tenant.unit})
+                        {tenant.name}{tenant.unit !== 'N/A' && ` (${tenant.unit})`}
                       </Label>
                     </div>
                   ))}

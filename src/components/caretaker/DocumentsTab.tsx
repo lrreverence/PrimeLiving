@@ -71,8 +71,8 @@ export const DocumentsTab = ({
                 </SelectTrigger>
                 <SelectContent>
                   {tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={`${tenant.name} (${tenant.unit})`}>
-                      {tenant.name} ({tenant.unit})
+                    <SelectItem key={tenant.id} value={`${tenant.name}${tenant.unit !== 'N/A' ? ` (${tenant.unit})` : ''}`}>
+                      {tenant.name}{tenant.unit !== 'N/A' && ` (${tenant.unit})`}
                     </SelectItem>
                   ))}
                 </SelectContent>

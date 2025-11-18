@@ -206,7 +206,9 @@ export const PaymentsTab = ({
                       <td className="py-4 px-4">
                         <div>
                           <div className="font-medium text-gray-900">{payment.tenantName}</div>
-                          <div className="text-sm text-gray-500">({payment.unit})</div>
+                          {payment.unit !== 'N/A' && (
+                            <div className="text-sm text-gray-500">({payment.unit})</div>
+                          )}
                         </div>
                       </td>
                       <td className="py-4 px-4 font-medium">₱{payment.amount.toLocaleString()}</td>

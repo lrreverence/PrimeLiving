@@ -452,7 +452,7 @@ const CaretakerDashboard = () => {
         tenantIds = formattedTenants.map(tenant => tenant.id);
       } else {
         tenantIds = formattedTenants
-          .filter(tenant => selectedRecipients.includes(`${tenant.name} (${tenant.unit})`))
+          .filter(tenant => selectedRecipients.includes(`${tenant.name}${tenant.unit !== 'N/A' ? ` (${tenant.unit})` : ''}`))
           .map(tenant => tenant.id);
       }
 
