@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CreditCard, CheckCircle, AlertCircle, Clock, Calendar, Eye, Download, Check, X, Plus } from 'lucide-react';
 
 interface Payment {
@@ -38,6 +40,28 @@ export const PaymentsTab = ({
   confirmedCount,
   pendingCount
 }: PaymentsTabProps) => {
+  const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+
+  const handleViewReceipt = (receiptUrl: string) => {
+    setSelectedReceipt(receiptUrl);
+    setReceiptModalOpen(true);
+  };
+
+  const handleCloseReceipt = () => {
+    setReceiptModalOpen(false);
+    setSelectedReceipt(null);
+  };
+
+  const isImage = (url: string) => {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    return imageExtensions.some(ext => url.toLowerCase().includes(ext));
+  };
+
+  const isPDF = (url: string) => {
+    return url.toLowerCase().includes('.pdf') || url.toLowerCase().includes('pdf');
+  };
+
   const filteredPayments = payments.filter(payment => {
     if (paymentFilter === 'all') return true;
     if (paymentFilter === 'pending') {
@@ -229,9 +253,21 @@ export const PaymentsTab = ({
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <Eye className="w-4 h-4" />
-                          </Button>
+                          {payment.receipt_url ? (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0"
+                              onClick={() => handleViewReceipt(payment.receipt_url!)}
+                              title="View Receipt"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled title="No receipt available">
+                              <Eye className="w-4 h-4 text-gray-400" />
+                            </Button>
+                          )}
                           {payment.receipt_url ? (
                             <Button 
                               variant="ghost" 
@@ -278,6 +314,68 @@ export const PaymentsTab = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Receipt View Modal */}
+      <Dialog open={receiptModalOpen} onOpenChange={setReceiptModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 p-6 pb-4 border-b">
+            <DialogTitle className="text-2xl font-bold">Payment Receipt</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto p-6">
+            {selectedReceipt && (
+              <div className="w-full">
+                {isImage(selectedReceipt) ? (
+                  <div className="flex items-center justify-center">
+                    <img 
+                      src={selectedReceipt} 
+                      alt="Payment Receipt" 
+                      className="max-w-full h-auto rounded-lg shadow-lg"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'text-center p-8 text-gray-500';
+                        errorDiv.textContent = 'Failed to load receipt image';
+                        target.parentElement?.appendChild(errorDiv);
+                      }}
+                    />
+                  </div>
+                ) : isPDF(selectedReceipt) ? (
+                  <div className="w-full h-[70vh]">
+                    <iframe
+                      src={selectedReceipt}
+                      className="w-full h-full border rounded-lg"
+                      title="Payment Receipt PDF"
+                    />
+                    <div className="mt-4 flex justify-center">
+                      <Button
+                        variant="outline"
+                        onClick={() => window.open(selectedReceipt, '_blank')}
+                        className="flex items-center space-x-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Open in New Tab</span>
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center p-8">
+                    <p className="text-gray-600 mb-4">Receipt preview not available for this file type.</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open(selectedReceipt, '_blank')}
+                      className="flex items-center space-x-2 mx-auto"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Receipt</span>
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

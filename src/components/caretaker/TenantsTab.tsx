@@ -4,7 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Search, Plus, Edit, Eye, Trash2, IdCard, X, Download, FileText } from 'lucide-react';
+import { Search, Plus, Edit, Eye, Trash2, IdCard, X, Download, FileText, User, Mail, Phone, MapPin, Calendar, Users, Briefcase, Building, Save } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { Label } from '@/components/ui/label';
 
 interface Tenant {
   id: number;
@@ -19,6 +22,7 @@ interface Tenant {
   balance: number;
   validIdUrl?: string;
   validIdUploadedAt?: string;
+  tenantData?: any; // Full tenant data from database
 }
 
 interface TenantsTabProps {
@@ -29,8 +33,24 @@ interface TenantsTabProps {
 }
 
 export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange }: TenantsTabProps) => {
+  const { toast } = useToast();
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [viewIdModalOpen, setViewIdModalOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [loadingUrl, setLoadingUrl] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editForm, setEditForm] = useState({
+    first_name: '',
+    last_name: '',
+    contact_number: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    emergency_contact_relationship: '',
+    occupation: '',
+    company: ''
+  });
 
   const filteredTenants = tenants.filter(tenant =>
     tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -38,9 +58,132 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
     tenant.unit.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleViewId = (tenant: Tenant) => {
+  const handleViewProfile = (tenant: Tenant) => {
+    setSelectedTenant(tenant);
+    setProfileModalOpen(true);
+  };
+
+  const handleEdit = (tenant: Tenant) => {
+    setSelectedTenant(tenant);
+    if (tenant.tenantData) {
+      setEditForm({
+        first_name: tenant.tenantData.first_name || '',
+        last_name: tenant.tenantData.last_name || '',
+        contact_number: tenant.tenantData.contact_number || '',
+        emergency_contact_name: tenant.tenantData.emergency_contact_name || '',
+        emergency_contact_phone: tenant.tenantData.emergency_contact_phone || '',
+        emergency_contact_relationship: tenant.tenantData.emergency_contact_relationship || '',
+        occupation: tenant.tenantData.occupation || '',
+        company: tenant.tenantData.company || ''
+      });
+    }
+    setEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!selectedTenant || !selectedTenant.tenantData) return;
+
+    try {
+      setEditLoading(true);
+      const { error } = await supabase
+        .from('tenants')
+        .update({
+          first_name: editForm.first_name,
+          last_name: editForm.last_name,
+          contact_number: editForm.contact_number,
+          emergency_contact_name: editForm.emergency_contact_name,
+          emergency_contact_phone: editForm.emergency_contact_phone,
+          emergency_contact_relationship: editForm.emergency_contact_relationship,
+          occupation: editForm.occupation,
+          company: editForm.company,
+          updated_at: new Date().toISOString()
+        })
+        .eq('tenant_id', selectedTenant.id);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Tenant Updated",
+        description: "Tenant information has been updated successfully.",
+      });
+
+      setEditModalOpen(false);
+      // Refresh the page or reload tenant data
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Error updating tenant:', error);
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update tenant. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleViewId = async (tenant: Tenant) => {
     setSelectedTenant(tenant);
     setViewIdModalOpen(true);
+    setSignedUrl(null);
+    setLoadingUrl(true);
+
+    if (tenant.validIdUrl) {
+      try {
+        // Extract the file path from the URL
+        // URL format: https://project.supabase.co/storage/v1/object/public/tenant-documents/valid-ids/filename.ext
+        // or: https://project.supabase.co/storage/v1/object/sign/tenant-documents/valid-ids/filename.ext
+        const url = new URL(tenant.validIdUrl);
+        const pathParts = url.pathname.split('/');
+        const bucketIndex = pathParts.indexOf('tenant-documents');
+        
+        if (bucketIndex !== -1 && bucketIndex < pathParts.length - 1) {
+          const filePath = pathParts.slice(bucketIndex + 1).join('/');
+          
+          // Generate signed URL (valid for 1 hour)
+          const { data, error } = await supabase.storage
+            .from('tenant-documents')
+            .createSignedUrl(filePath, 3600);
+
+          if (error) {
+            console.error('Error creating signed URL:', error);
+            // Fallback to original URL
+            setSignedUrl(tenant.validIdUrl);
+          } else {
+            setSignedUrl(data.signedUrl);
+          }
+        } else {
+          // If we can't parse the path, try to extract it differently
+          // Sometimes the URL might be in a different format
+          const match = tenant.validIdUrl.match(/tenant-documents\/(.+)$/);
+          if (match) {
+            const filePath = match[1];
+            const { data, error } = await supabase.storage
+              .from('tenant-documents')
+              .createSignedUrl(filePath, 3600);
+
+            if (error) {
+              console.error('Error creating signed URL:', error);
+              setSignedUrl(tenant.validIdUrl);
+            } else {
+              setSignedUrl(data.signedUrl);
+            }
+          } else {
+            // Fallback to original URL
+            setSignedUrl(tenant.validIdUrl);
+          }
+        }
+      } catch (error) {
+        console.error('Error generating signed URL:', error);
+        setSignedUrl(tenant.validIdUrl);
+      } finally {
+        setLoadingUrl(false);
+      }
+    } else {
+      setLoadingUrl(false);
+    }
   };
 
   return (
@@ -160,10 +303,22 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleEdit(tenant)}
+                            title="Edit Tenant"
+                          >
                             <Edit className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleViewProfile(tenant)}
+                            title="View Profile"
+                          >
                             <Eye className="w-4 h-4" />
                           </Button>
                           {tenant.validIdUrl ? (
@@ -205,33 +360,27 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
       <Dialog open={viewIdModalOpen} onOpenChange={setViewIdModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
           <DialogHeader className="flex-shrink-0 p-6 pb-4 border-b">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="text-2xl font-bold">Valid ID Document</DialogTitle>
-                <DialogDescription className="mt-1">
-                  {selectedTenant?.name} - {selectedTenant?.email}
-                  {selectedTenant?.validIdUploadedAt && (
-                    <span className="block text-xs text-gray-500 mt-1">
-                      Uploaded: {new Date(selectedTenant.validIdUploadedAt).toLocaleDateString()}
-                    </span>
-                  )}
-                </DialogDescription>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setViewIdModalOpen(false)}
-                className="h-8 w-8 p-0"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
+            <DialogTitle className="text-2xl font-bold">Valid ID Document</DialogTitle>
+            <DialogDescription className="mt-1">
+              {selectedTenant?.name} - {selectedTenant?.email}
+              {selectedTenant?.validIdUploadedAt && (
+                <span className="block text-xs text-gray-500 mt-1">
+                  Uploaded: {new Date(selectedTenant.validIdUploadedAt).toLocaleDateString()}
+                </span>
+              )}
+            </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-auto p-6 bg-gray-50">
             {selectedTenant?.validIdUrl ? (
               <div className="space-y-4">
-                <div className="bg-white rounded-lg border-2 border-gray-200 p-4">
-                  {selectedTenant.validIdUrl.toLowerCase().endsWith('.pdf') ? (
+                {loadingUrl ? (
+                  <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+                    <p className="text-gray-600">Loading document...</p>
+                  </div>
+                ) : signedUrl ? (
+                  <div className="bg-white rounded-lg border-2 border-gray-200 p-4">
+                    {(signedUrl.toLowerCase().includes('.pdf') || selectedTenant.validIdUrl?.toLowerCase().endsWith('.pdf')) ? (
                     <div className="flex flex-col items-center justify-center min-h-[400px]">
                       <div className="text-center space-y-4">
                         <FileText className="w-16 h-16 text-gray-400 mx-auto" />
@@ -240,7 +389,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                           <p className="text-sm text-gray-500 mt-1">Click below to view the PDF</p>
                         </div>
                         <Button
-                          onClick={() => window.open(selectedTenant.validIdUrl, '_blank')}
+                          onClick={() => window.open(signedUrl, '_blank')}
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           <Download className="w-4 h-4 mr-2" />
@@ -251,7 +400,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                   ) : (
                     <div className="flex justify-center">
                       <img
-                        src={selectedTenant.validIdUrl}
+                        src={signedUrl}
                         alt={`Valid ID for ${selectedTenant.name}`}
                         className="max-w-full h-auto rounded-lg shadow-lg"
                         onError={(e) => {
@@ -270,7 +419,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                                   <p class="text-lg font-semibold text-gray-700">Failed to load image</p>
                                   <p class="text-sm text-gray-500 mt-1">The image may have been deleted or is no longer accessible</p>
                                 </div>
-                                <a href="${selectedTenant.validIdUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 underline">
+                                <a href="${signedUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 underline">
                                   Try opening in new tab
                                 </a>
                               </div>
@@ -280,23 +429,38 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                       />
                     </div>
                   )}
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (selectedTenant?.validIdUrl) {
-                        window.open(selectedTenant.validIdUrl, '_blank');
-                      }
-                    }}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
-                  </Button>
-                  <Button onClick={() => setViewIdModalOpen(false)}>
-                    Close
-                  </Button>
-                </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                      <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold text-gray-700">Failed to load document</p>
+                      <p className="text-sm text-gray-500 mt-1">Unable to generate access URL for this document</p>
+                    </div>
+                  </div>
+                )}
+                {signedUrl && (
+                  <div className="flex justify-end space-x-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (signedUrl) {
+                          window.open(signedUrl, '_blank');
+                        }
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </Button>
+                    <Button onClick={() => setViewIdModalOpen(false)}>
+                      Close
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4">
@@ -304,6 +468,380 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                 <div>
                   <p className="text-lg font-semibold text-gray-700">No Valid ID Available</p>
                   <p className="text-sm text-gray-500 mt-1">This tenant has not uploaded a valid ID yet</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tenant Profile Modal */}
+      <Dialog open={profileModalOpen} onOpenChange={setProfileModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 p-6 pb-4 border-b">
+            <DialogTitle className="text-2xl font-bold">Tenant Profile</DialogTitle>
+            <DialogDescription className="mt-1">
+              Complete profile information for {selectedTenant?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto p-6">
+            {selectedTenant && (
+              <div className="space-y-6">
+                {/* Basic Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Basic Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <User className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-600">Full Name</p>
+                        <p className="font-medium text-gray-900">{selectedTenant.name}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <Mail className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-600">Email</p>
+                        <p className="font-medium text-gray-900">{selectedTenant.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <Phone className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-600">Contact Number</p>
+                        <p className="font-medium text-gray-900">{selectedTenant.contact || 'Not provided'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <MapPin className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-600">Unit</p>
+                        <Badge variant="secondary" className="bg-gray-100 text-gray-700">
+                          {selectedTenant.unit}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Contract Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Contract Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <Calendar className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-600">Contract Period</p>
+                        <p className="font-medium text-gray-900">
+                          {selectedTenant.contractStart !== 'N/A' && selectedTenant.contractEnd !== 'N/A'
+                            ? `${selectedTenant.contractStart} to ${selectedTenant.contractEnd}`
+                            : 'No contract'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-5 h-5 flex items-center justify-center">
+                        <Badge 
+                          className={
+                            selectedTenant.status === 'active' 
+                              ? 'bg-gray-800 text-white' 
+                              : 'bg-gray-100 text-gray-700'
+                          }
+                        >
+                          {selectedTenant.status}
+                        </Badge>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Status</p>
+                        <p className="font-medium text-gray-900 capitalize">{selectedTenant.status}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-5 h-5" />
+                      <div>
+                        <p className="text-sm text-gray-600">Monthly Rent</p>
+                        <p className="font-medium text-gray-900">₱{selectedTenant.monthlyRent.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-5 h-5" />
+                      <div>
+                        <p className="text-sm text-gray-600">Balance</p>
+                        <p className={`font-medium ${selectedTenant.balance > 0 ? 'text-red-600' : selectedTenant.balance < 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                          ₱{Math.abs(selectedTenant.balance).toLocaleString()} {selectedTenant.balance > 0 ? '(Owed)' : selectedTenant.balance < 0 ? '(Credit)' : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Additional Information from tenantData */}
+                {selectedTenant.tenantData && (
+                  <>
+                    {/* Emergency Contact */}
+                    {(selectedTenant.tenantData.emergency_contact_name || selectedTenant.tenantData.emergency_contact_phone) && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">Emergency Contact</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {selectedTenant.tenantData.emergency_contact_name && (
+                            <div className="flex items-center space-x-3">
+                              <Users className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Contact Name</p>
+                                <p className="font-medium text-gray-900">{selectedTenant.tenantData.emergency_contact_name}</p>
+                              </div>
+                            </div>
+                          )}
+                          {selectedTenant.tenantData.emergency_contact_phone && (
+                            <div className="flex items-center space-x-3">
+                              <Phone className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Contact Phone</p>
+                                <p className="font-medium text-gray-900">{selectedTenant.tenantData.emergency_contact_phone}</p>
+                              </div>
+                            </div>
+                          )}
+                          {selectedTenant.tenantData.emergency_contact_relationship && (
+                            <div className="flex items-center space-x-3">
+                              <Users className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Relationship</p>
+                                <p className="font-medium text-gray-900">{selectedTenant.tenantData.emergency_contact_relationship}</p>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Occupation Information */}
+                    {(selectedTenant.tenantData.occupation || selectedTenant.tenantData.company) && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">Occupation</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {selectedTenant.tenantData.occupation && (
+                            <div className="flex items-center space-x-3">
+                              <Briefcase className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Occupation</p>
+                                <p className="font-medium text-gray-900">{selectedTenant.tenantData.occupation}</p>
+                              </div>
+                            </div>
+                          )}
+                          {selectedTenant.tenantData.company && (
+                            <div className="flex items-center space-x-3">
+                              <Building className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="text-sm text-gray-600">Company</p>
+                                <p className="font-medium text-gray-900">{selectedTenant.tenantData.company}</p>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Move-in Date */}
+                    {selectedTenant.tenantData.move_in_date && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">Move-in Information</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center space-x-3">
+                            <Calendar className="w-5 h-5 text-gray-400" />
+                            <div>
+                              <p className="text-sm text-gray-600">Move-in Date</p>
+                              <p className="font-medium text-gray-900">
+                                {new Date(selectedTenant.tenantData.move_in_date).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </>
+                )}
+
+                {/* Valid ID Status */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Valid ID Status</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center space-x-3">
+                      <IdCard className="w-5 h-5 text-gray-400" />
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600">ID Verification</p>
+                        {selectedTenant.validIdUrl ? (
+                          <div className="flex items-center space-x-2 mt-1">
+                            <Badge className="bg-green-100 text-green-800">Verified</Badge>
+                            {selectedTenant.validIdUploadedAt && (
+                              <span className="text-xs text-gray-500">
+                                Uploaded: {new Date(selectedTenant.validIdUploadedAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <Badge className="bg-yellow-100 text-yellow-800 mt-1">Pending</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Tenant Modal */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 p-6 pb-4 border-b">
+            <DialogTitle className="text-2xl font-bold">Edit Tenant Information</DialogTitle>
+            <DialogDescription className="mt-1">
+              Update information for {selectedTenant?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto p-6">
+            {selectedTenant && (
+              <div className="space-y-6">
+                {/* Basic Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Basic Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="first_name">First Name</Label>
+                        <Input
+                          id="first_name"
+                          value={editForm.first_name}
+                          onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+                          placeholder="First name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="last_name">Last Name</Label>
+                        <Input
+                          id="last_name"
+                          value={editForm.last_name}
+                          onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+                          placeholder="Last name"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="contact_number">Contact Number</Label>
+                      <Input
+                        id="contact_number"
+                        value={editForm.contact_number}
+                        onChange={(e) => setEditForm({ ...editForm, contact_number: e.target.value })}
+                        placeholder="Contact number"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Emergency Contact */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Emergency Contact</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="emergency_contact_name">Contact Name</Label>
+                      <Input
+                        id="emergency_contact_name"
+                        value={editForm.emergency_contact_name}
+                        onChange={(e) => setEditForm({ ...editForm, emergency_contact_name: e.target.value })}
+                        placeholder="Emergency contact name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="emergency_contact_phone">Contact Phone</Label>
+                      <Input
+                        id="emergency_contact_phone"
+                        value={editForm.emergency_contact_phone}
+                        onChange={(e) => setEditForm({ ...editForm, emergency_contact_phone: e.target.value })}
+                        placeholder="Emergency contact phone"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="emergency_contact_relationship">Relationship</Label>
+                      <Input
+                        id="emergency_contact_relationship"
+                        value={editForm.emergency_contact_relationship}
+                        onChange={(e) => setEditForm({ ...editForm, emergency_contact_relationship: e.target.value })}
+                        placeholder="Relationship (e.g., Spouse, Parent, Sibling)"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Occupation */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Occupation</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="occupation">Occupation</Label>
+                      <Input
+                        id="occupation"
+                        value={editForm.occupation}
+                        onChange={(e) => setEditForm({ ...editForm, occupation: e.target.value })}
+                        placeholder="Occupation"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="company">Company</Label>
+                      <Input
+                        id="company"
+                        value={editForm.company}
+                        onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
+                        placeholder="Company name"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-2 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditModalOpen(false)}
+                    disabled={editLoading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleEditSubmit}
+                    disabled={editLoading}
+                    className="bg-gray-900 text-white hover:bg-gray-800"
+                  >
+                    {editLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
             )}

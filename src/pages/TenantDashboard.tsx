@@ -1311,43 +1311,6 @@ const TenantDashboard = () => {
         </div>
       )}
 
-      {/* Debug Section - Remove this after fixing */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <Card className="bg-yellow-50 border-yellow-200">
-            <CardContent className="p-4">
-              <h3 className="font-semibold text-yellow-800 mb-2">Debug Information</h3>
-              <div className="text-sm text-yellow-700 space-y-1">
-                <p><strong>User ID:</strong> {user?.id || 'No user'}</p>
-                <p><strong>User Email:</strong> {user?.email || 'No email'}</p>
-                <p><strong>Email Confirmed:</strong> {user?.email_confirmed_at ? 'Yes' : 'No'}</p>
-                <p><strong>Loading:</strong> {loading ? 'Yes' : 'No'}</p>
-                <p><strong>Profile Loading:</strong> {isLoadingProfile ? 'Yes' : 'No'}</p>
-                <p><strong>Tenant Data:</strong> {tenantData ? 'Found' : 'Not found'}</p>
-                <p><strong>Tenant ID:</strong> {tenantData?.tenant_id || 'N/A'}</p>
-                <p><strong>Branch:</strong> {tenantData?.branch || 'N/A'}</p>
-                <Button
-                  onClick={fetchTenantData}
-                  size="sm"
-                  className="mt-2"
-                  disabled={loading}
-                >
-                  {loading ? 'Loading...' : 'Retry Fetch'}
-                </Button>
-                <Button
-                  onClick={createTenantRecord}
-                  size="sm"
-                  className="mt-2 ml-2"
-                  variant="outline"
-                >
-                  Create Tenant Record
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Check if Valid ID is uploaded */}
       {tenantData && !tenantData.valid_id_url && user && tenantData.tenant_id && (
         <UploadValidId
