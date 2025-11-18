@@ -1311,20 +1311,34 @@ const TenantDashboard = () => {
         </div>
       )}
 
-      {/* Check if Valid ID is uploaded */}
-      {tenantData && !tenantData.valid_id_url && user && tenantData.tenant_id && (
-        <UploadValidId
-          tenantId={tenantData.tenant_id}
-          userId={user.id}
-          onUploadSuccess={() => {
-            // Refresh tenant data after upload
-            fetchTenantData();
-          }}
-        />
+      {/* Check if Valid ID is uploaded - Block dashboard access if missing */}
+      {tenantData && user && tenantData.tenant_id && (!tenantData.valid_id_url || (typeof tenantData.valid_id_url === 'string' && tenantData.valid_id_url.trim() === '')) && !loading && (
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <UploadValidId
+            tenantId={tenantData.tenant_id}
+            userId={user.id}
+            onUploadSuccess={() => {
+              // Refresh tenant data after upload
+              fetchTenantData();
+            }}
+          />
+        </div>
       )}
 
-      {/* Show dashboard only if Valid ID is uploaded or loading */}
-      {(!tenantData || tenantData.valid_id_url || loading) && (
+      {/* Show loading state */}
+      {loading && (
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading dashboard...</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Show dashboard only if Valid ID is uploaded (not null, undefined, or empty string) */}
+      {tenantData && user && tenantData.tenant_id && tenantData.valid_id_url && typeof tenantData.valid_id_url === 'string' && tenantData.valid_id_url.trim() !== '' && !loading && (
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Navigation */}

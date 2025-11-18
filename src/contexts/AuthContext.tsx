@@ -110,20 +110,69 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // If tenant and valid ID URL provided, update tenant record
       if (role === 'tenant' && validIdUrl && data.user) {
         // Wait a bit for the trigger to create the tenant record
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        let retries = 0;
+        let tenantRecord = null;
         
-        // Update tenant record with valid ID URL
-        const { error: updateError } = await supabase
-          .from('tenants')
-          .update({
-            valid_id_url: validIdUrl,
-            valid_id_uploaded_at: new Date().toISOString()
-          })
-          .eq('user_id', data.user.id);
+        // Retry up to 5 times to find the tenant record
+        while (retries < 5 && !tenantRecord) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const { data: tenantData, error: fetchError } = await supabase
+            .from('tenants')
+            .select('tenant_id')
+            .eq('user_id', data.user.id)
+            .single();
+          
+          if (tenantData) {
+            tenantRecord = tenantData;
+            break;
+          }
+          
+          retries++;
+        }
+        
+        if (tenantRecord) {
+          // Update tenant record with valid ID URL
+          const { error: updateError } = await supabase
+            .from('tenants')
+            .update({
+              valid_id_url: validIdUrl,
+              valid_id_uploaded_at: new Date().toISOString()
+            })
+            .eq('user_id', data.user.id);
 
-        if (updateError) {
-          console.error('Error updating tenant with valid ID:', updateError);
-          // Don't fail signup if update fails, but log it
+          if (updateError) {
+            console.error('Error updating tenant with valid ID:', updateError);
+            // Don't fail signup if update fails, but log it
+          }
+        } else {
+          console.error('Tenant record not found after signup, valid ID URL may not be saved');
+        }
+      } else if (role === 'tenant' && !validIdUrl) {
+        // If tenant signs up without valid ID, ensure valid_id_url is explicitly null
+        // Wait for tenant record to be created
+        let retries = 0;
+        while (retries < 5) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const { data: tenantData } = await supabase
+            .from('tenants')
+            .select('tenant_id')
+            .eq('user_id', data.user.id)
+            .single();
+          
+          if (tenantData) {
+            // Ensure valid_id_url is explicitly null (not empty string)
+            await supabase
+              .from('tenants')
+              .update({
+                valid_id_url: null,
+                valid_id_uploaded_at: null
+              })
+              .eq('user_id', data.user.id);
+            break;
+          }
+          retries++;
         }
       }
 
