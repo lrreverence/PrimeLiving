@@ -531,12 +531,17 @@ const CaretakerDashboard = () => {
       for (const tenant of selectedTenants) {
         // Send email if method includes email and tenant has email
         if (shouldSendEmail && tenant.email && tenant.email !== 'N/A' && tenant.email.includes('@')) {
+          console.log('Attempting to send email to:', tenant.email, 'Subject:', subject);
           const emailResult = await sendEmailNotification(tenant.email, subject, fullMessage);
           if (emailResult.success) {
             emailCount++;
+            console.log('Email sent successfully to:', tenant.email);
           } else {
             emailErrors++;
+            console.error('Failed to send email to:', tenant.email, 'Error:', emailResult.error);
           }
+        } else if (shouldSendEmail) {
+          console.warn('Skipping email for tenant:', tenant.name, 'Email:', tenant.email, 'Reason: Invalid or missing email');
         }
 
         // Send SMS if method includes SMS and tenant has phone number

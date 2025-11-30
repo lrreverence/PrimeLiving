@@ -68,6 +68,8 @@ export const sendEmailNotification = async (
   message: string
 ): Promise<NotificationResult> => {
   try {
+    console.log('Calling send-email Edge Function with:', { email, subject, messageLength: message.length });
+    
     // Use Supabase Edge Function for email sending
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
@@ -76,6 +78,8 @@ export const sendEmailNotification = async (
         message: message,
       },
     });
+
+    console.log('Edge Function response:', { data, error });
 
     if (error) {
       console.error('Error calling email function:', error);
@@ -88,6 +92,7 @@ export const sendEmailNotification = async (
       return { success: false, error: data.error || 'Unknown error' };
     }
 
+    console.log('Email sent successfully via Edge Function');
     return { success: true, data };
   } catch (error) {
     console.error('Error sending email notification:', error);
