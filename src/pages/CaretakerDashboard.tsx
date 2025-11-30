@@ -29,6 +29,7 @@ import { PaymentsTab } from '@/components/caretaker/PaymentsTab';
 import { DocumentsTab } from '@/components/caretaker/DocumentsTab';
 import { NotificationsTab } from '@/components/caretaker/NotificationsTab';
 import { MaintenanceTab } from '@/components/caretaker/MaintenanceTab';
+import { sendEmailNotification, sendSMSNotification } from '@/lib/notificationService';
 
 const CaretakerDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -435,6 +436,7 @@ const CaretakerDashboard = () => {
     }
   };
 
+
   const handleSendNotification = async () => {
     if (!subject || !message || selectedRecipients.length === 0) {
       toast({
@@ -446,17 +448,28 @@ const CaretakerDashboard = () => {
     }
 
     try {
-      let tenantIds: number[] = [];
+      // Get selected tenants with their contact information
+      let selectedTenants: Array<{ id: number; email: string; contact: string; name: string }> = [];
       
       if (selectedRecipients.includes('All Tenants')) {
-        tenantIds = formattedTenants.map(tenant => tenant.id);
+        selectedTenants = formattedTenants.map(tenant => ({
+          id: tenant.id,
+          email: tenant.email,
+          contact: tenant.contact,
+          name: tenant.name
+        }));
       } else {
-        tenantIds = formattedTenants
+        selectedTenants = formattedTenants
           .filter(tenant => selectedRecipients.includes(`${tenant.name}${tenant.unit !== 'N/A' ? ` (${tenant.unit})` : ''}`))
-          .map(tenant => tenant.id);
+          .map(tenant => ({
+            id: tenant.id,
+            email: tenant.email,
+            contact: tenant.contact,
+            name: tenant.name
+          }));
       }
 
-      if (tenantIds.length === 0) {
+      if (selectedTenants.length === 0) {
         toast({
           title: "Error",
           description: "No valid tenants selected.",
@@ -475,40 +488,97 @@ const CaretakerDashboard = () => {
 
       const dbNotificationType = notificationTypeMap[notificationType] || 'general';
       const fullMessage = subject ? `${subject}\n\n${message}` : message;
+      const sentDate = scheduleDate ? new Date(scheduleDate).toISOString() : new Date().toISOString();
 
-      const notificationsToInsert = tenantIds.map(tenantId => ({
-        tenant_id: tenantId,
+      // Prepare notifications to insert
+      const notificationsToInsert = selectedTenants.map(tenant => ({
+        tenant_id: tenant.id,
         notification_type: dbNotificationType,
         message: fullMessage,
-        sent_date: scheduleDate ? new Date(scheduleDate).toISOString() : new Date().toISOString(),
+        sent_date: sentDate,
         status: 'unread',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }));
 
-      const { error } = await supabase
+      // Save notifications to database
+      const { error: insertError } = await supabase
         .from('notifications')
         .insert(notificationsToInsert);
 
-      if (error) {
-        console.error('Error creating notifications:', error);
+      if (insertError) {
+        console.error('Error creating notifications:', insertError);
         toast({
           title: "Error",
-          description: `Failed to send notifications: ${error.message}`,
-        variant: "destructive"
+          description: `Failed to save notifications: ${insertError.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Send emails and SMS based on delivery method
+      let emailCount = 0;
+      let smsCount = 0;
+      let emailErrors = 0;
+      let smsErrors = 0;
+
+      // Check if we should send emails
+      const shouldSendEmail = deliveryMethod.includes('Email') || deliveryMethod === 'SMS + Email';
+      // Check if we should send SMS
+      const shouldSendSMS = deliveryMethod.includes('SMS') || deliveryMethod === 'SMS + Email';
+
+      // Send notifications to each tenant
+      for (const tenant of selectedTenants) {
+        // Send email if method includes email and tenant has email
+        if (shouldSendEmail && tenant.email && tenant.email !== 'N/A' && tenant.email.includes('@')) {
+          const emailResult = await sendEmailNotification(tenant.email, subject, fullMessage);
+          if (emailResult.success) {
+            emailCount++;
+          } else {
+            emailErrors++;
+          }
+        }
+
+        // Send SMS if method includes SMS and tenant has phone number
+        if (shouldSendSMS && tenant.contact && tenant.contact !== 'N/A') {
+          const smsResult = await sendSMSNotification(tenant.contact, fullMessage);
+          if (smsResult.success) {
+            smsCount++;
+          } else {
+            smsErrors++;
+          }
+        }
+      }
+
+      // Show success message with delivery details
+      let successMessage = `Notification saved and sent to ${selectedTenants.length} tenant(s).`;
+      if (shouldSendEmail || shouldSendSMS) {
+        const deliveryDetails = [];
+        if (shouldSendEmail) {
+          deliveryDetails.push(`${emailCount} email(s)`);
+          if (emailErrors > 0) deliveryDetails.push(`${emailErrors} email error(s)`);
+        }
+        if (shouldSendSMS) {
+          deliveryDetails.push(`${smsCount} SMS(s)`);
+          if (smsErrors > 0) deliveryDetails.push(`${smsErrors} SMS error(s)`);
+        }
+        if (deliveryDetails.length > 0) {
+          successMessage += ` Delivery: ${deliveryDetails.join(', ')}.`;
+        }
+      } else {
+        successMessage += ' (Notification saved to tenant dashboards)';
+      }
+
+      toast({
+        title: "Notification Sent",
+        description: successMessage,
       });
-      return;
-    }
 
-    toast({
-      title: "Notification Sent",
-        description: `Notification sent to ${tenantIds.length} tenant(s).`,
-    });
-
-    setSubject('');
-    setMessage('');
-    setSelectedRecipients([]);
-    setScheduleDate('');
+      // Clear form
+      setSubject('');
+      setMessage('');
+      setSelectedRecipients([]);
+      setScheduleDate('');
     } catch (error) {
       console.error('Error sending notification:', error);
       toast({
