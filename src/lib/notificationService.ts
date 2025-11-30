@@ -68,9 +68,7 @@ export const sendEmailNotification = async (
   message: string
 ): Promise<NotificationResult> => {
   try {
-    // Option 1: Use Supabase Edge Function
-    // Uncomment and configure when Edge Function is set up:
-    /*
+    // Use Supabase Edge Function for email sending
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
         to: email,
@@ -84,15 +82,13 @@ export const sendEmailNotification = async (
       return { success: false, error };
     }
 
-    return { success: true };
-    */
+    // Check if the function returned an error
+    if (data && !data.success) {
+      console.error('Email function returned error:', data.error);
+      return { success: false, error: data.error || 'Unknown error' };
+    }
 
-    // Option 2: Use direct email service API
-    // You can integrate SendGrid, AWS SES, etc. here
-
-    // For now, just log (notifications are saved to database)
-    console.log('Email notification prepared for:', email, 'Subject:', subject);
-    return { success: true };
+    return { success: true, data };
   } catch (error) {
     console.error('Error sending email notification:', error);
     return { success: false, error };
@@ -101,6 +97,7 @@ export const sendEmailNotification = async (
 
 /**
  * Send SMS notification to a tenant
+ * NOTE: SMS functionality is saved for later implementation
  * @param phoneNumber - Tenant's phone number
  * @param message - SMS message body
  * @returns Promise with success status
@@ -110,9 +107,10 @@ export const sendSMSNotification = async (
   message: string
 ): Promise<NotificationResult> => {
   try {
-    // Option 1: Use Supabase Edge Function
-    // Uncomment and configure when Edge Function is set up:
+    // SMS functionality saved for later implementation
+    // When ready to implement, uncomment and set up:
     /*
+    // Option 1: Use Supabase Edge Function
     const { data, error } = await supabase.functions.invoke('send-sms', {
       body: {
         to: phoneNumber,
@@ -128,36 +126,9 @@ export const sendSMSNotification = async (
     return { success: true };
     */
 
-    // Option 2: Use direct SMS service API (e.g., Twilio)
-    // Example with Twilio:
-    /*
-    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
-    const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
-    const fromNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
-    
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${btoa(`${accountSid}:${authToken}`)}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          From: fromNumber,
-          To: phoneNumber,
-          Body: message,
-        }),
-      }
-    );
-    
-    if (!response.ok) {
-      throw new Error('Failed to send SMS');
-    }
-    */
-
     // For now, just log (notifications are saved to database)
-    console.log('SMS notification prepared for:', phoneNumber);
+    // SMS will be implemented later
+    console.log('SMS notification saved for later implementation:', phoneNumber);
     return { success: true };
   } catch (error) {
     console.error('Error sending SMS notification:', error);
