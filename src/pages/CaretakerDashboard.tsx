@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,16 @@ const CaretakerDashboard = () => {
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState('');
   const [maintenanceFilter, setMaintenanceFilter] = useState('all');
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [templateForm, setTemplateForm] = useState({
+    name: '',
+    notification_type: 'General Notice',
+    subject: '',
+    message: ''
+  });
   
   const { logout, user } = useAuth();
   const { toast } = useToast();
@@ -601,6 +611,242 @@ const CaretakerDashboard = () => {
     setScheduleDate('');
   };
 
+  // Template management functions
+  const fetchTemplates = async () => {
+    if (!landlordData?.landlord_id) return;
+
+    try {
+      setTemplatesLoading(true);
+      const { data, error } = await supabase
+        .from('notification_templates' as any)
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching templates:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load templates.",
+          variant: "destructive"
+        });
+      } else {
+        setTemplates(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
+
+  const handleCreateTemplate = async () => {
+    if (!templateForm.name || !templateForm.message) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in template name and message.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const notificationTypeMap: { [key: string]: string } = {
+        'General Notice': 'general',
+        'Payment Reminder': 'payment',
+        'Maintenance Notice': 'maintenance',
+        'Contract Update': 'general',
+        'Emergency Alert': 'emergency'
+      };
+
+      const dbNotificationType = notificationTypeMap[templateForm.notification_type] || 'general';
+
+      const { error } = await supabase
+        .from('notification_templates' as any)
+        .insert({
+          name: templateForm.name,
+          notification_type: dbNotificationType,
+          subject: templateForm.subject,
+          message: templateForm.message,
+          created_by: landlordData?.landlord_id || null
+        });
+
+      if (error) {
+        console.error('Error creating template:', error);
+        toast({
+          title: "Error",
+          description: `Failed to create template: ${error.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "Template Created",
+        description: "Template has been created successfully.",
+      });
+
+      setTemplateModalOpen(false);
+      setTemplateForm({ name: '', notification_type: 'General Notice', subject: '', message: '' });
+      setEditingTemplate(null);
+      fetchTemplates();
+    } catch (error) {
+      console.error('Error creating template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create template. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUpdateTemplate = async () => {
+    if (!editingTemplate || !templateForm.name || !templateForm.message) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in template name and message.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const notificationTypeMap: { [key: string]: string } = {
+        'General Notice': 'general',
+        'Payment Reminder': 'payment',
+        'Maintenance Notice': 'maintenance',
+        'Contract Update': 'general',
+        'Emergency Alert': 'emergency'
+      };
+
+      const dbNotificationType = notificationTypeMap[templateForm.notification_type] || 'general';
+
+      const { error } = await supabase
+        .from('notification_templates' as any)
+        .update({
+          name: templateForm.name,
+          notification_type: dbNotificationType,
+          subject: templateForm.subject,
+          message: templateForm.message,
+          updated_at: new Date().toISOString()
+        })
+        .eq('template_id', editingTemplate.template_id);
+
+      if (error) {
+        console.error('Error updating template:', error);
+        toast({
+          title: "Error",
+          description: `Failed to update template: ${error.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "Template Updated",
+        description: "Template has been updated successfully.",
+      });
+
+      setTemplateModalOpen(false);
+      setTemplateForm({ name: '', notification_type: 'General Notice', subject: '', message: '' });
+      setEditingTemplate(null);
+      fetchTemplates();
+    } catch (error) {
+      console.error('Error updating template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update template. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId: number) => {
+    if (!confirm('Are you sure you want to delete this template?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('notification_templates' as any)
+        .delete()
+        .eq('template_id', templateId);
+
+      if (error) {
+        console.error('Error deleting template:', error);
+        toast({
+          title: "Error",
+          description: `Failed to delete template: ${error.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "Template Deleted",
+        description: "Template has been deleted successfully.",
+      });
+
+      fetchTemplates();
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete template. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUseTemplate = (template: any) => {
+    const typeMap: { [key: string]: string } = {
+      'general': 'General Notice',
+      'payment': 'Payment Reminder',
+      'maintenance': 'Maintenance Notice',
+      'emergency': 'Emergency Alert'
+    };
+
+    setNotificationType(typeMap[template.notification_type] || 'General Notice');
+    setSubject(template.subject || '');
+    setMessage(template.message || '');
+    setNotificationTab('compose');
+    
+    toast({
+      title: "Template Applied",
+      description: "Template has been loaded into the compose form.",
+    });
+  };
+
+  const handleEditTemplate = (template: any) => {
+    const typeMap: { [key: string]: string } = {
+      'general': 'General Notice',
+      'payment': 'Payment Reminder',
+      'maintenance': 'Maintenance Notice',
+      'emergency': 'Emergency Alert'
+    };
+
+    setEditingTemplate(template);
+    setTemplateForm({
+      name: template.name,
+      notification_type: typeMap[template.notification_type] || 'General Notice',
+      subject: template.subject || '',
+      message: template.message || ''
+    });
+    setTemplateModalOpen(true);
+  };
+
+  const handleNewTemplate = () => {
+    setEditingTemplate(null);
+    setTemplateForm({ name: '', notification_type: 'General Notice', subject: '', message: '' });
+    setTemplateModalOpen(true);
+  };
+
+  // Load templates when notification tab is opened
+  useEffect(() => {
+    if (activeTab === 'notifications' && notificationTab === 'templates' && landlordData?.landlord_id) {
+      fetchTemplates();
+    }
+  }, [activeTab, notificationTab, landlordData]);
+
   // Overview data
   const overviewMetrics = [
     {
@@ -851,6 +1097,19 @@ const CaretakerDashboard = () => {
               tenants={formattedTenants}
               notificationTypes={notificationTypes}
               deliveryMethods={deliveryMethods}
+              templates={templates}
+              templatesLoading={templatesLoading}
+              onFetchTemplates={fetchTemplates}
+              onUseTemplate={handleUseTemplate}
+              onEditTemplate={handleEditTemplate}
+              onDeleteTemplate={handleDeleteTemplate}
+              onNewTemplate={handleNewTemplate}
+              templateModalOpen={templateModalOpen}
+              onTemplateModalOpenChange={setTemplateModalOpen}
+              templateForm={templateForm}
+              onTemplateFormChange={setTemplateForm}
+              editingTemplate={editingTemplate}
+              onSaveTemplate={editingTemplate ? handleUpdateTemplate : handleCreateTemplate}
             />
           </TabsContent>
 
