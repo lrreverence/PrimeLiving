@@ -971,29 +971,74 @@ const TenantDashboard = () => {
         throw new Error('No tenant record found. Please contact support.');
       }
 
-      // Get a unit_id (for now, we'll use a default or first available unit)
-      // In a real app, you'd get this from the tenant's current contract
+      // Get unit_id and branch from the tenant's current contract or tenant's branch
       let unitId = 1; // Default unit_id
+      let branch = null;
 
-      const { data: unitData, error: unitError } = await supabase
-        .from('units')
-        .select('unit_id')
-        .eq('status', 'available')
-        .limit(1);
+      // First, try to get unit from tenant's active contract
+      const { data: contractData } = await supabase
+        .from('contracts')
+        .select('unit_id, units(branch)')
+        .eq('tenant_id', tenantRecord.tenant_id)
+        .eq('status', 'active')
+        .limit(1)
+        .single();
 
-      if (unitError || !unitData || unitData.length === 0) {
-        console.warn('No available unit found, using default unit_id');
-        // Try to get any unit if no available units
-        const { data: anyUnit } = await supabase
+      if (contractData) {
+        unitId = contractData.unit_id;
+        const unit = Array.isArray(contractData.units) ? contractData.units[0] : contractData.units;
+        branch = unit?.branch;
+      }
+
+      // If no contract, get branch from tenant record
+      if (!branch) {
+        const { data: tenantData } = await supabase
+          .from('tenants')
+          .select('branch')
+          .eq('tenant_id', tenantRecord.tenant_id)
+          .single();
+        
+        branch = tenantData?.branch;
+      }
+
+      // If still no branch, try to get it from the unit
+      if (!branch && unitId) {
+        const { data: unitData } = await supabase
           .from('units')
-          .select('unit_id')
+          .select('branch')
+          .eq('unit_id', unitId)
+          .single();
+        
+        branch = unitData?.branch;
+      }
+
+      // Fallback: get any available unit
+      if (!unitId || unitId === 1) {
+        const { data: unitData, error: unitError } = await supabase
+          .from('units')
+          .select('unit_id, branch')
+          .eq('status', 'available')
           .limit(1);
 
-        if (anyUnit && anyUnit.length > 0) {
-          unitId = anyUnit[0].unit_id;
+        if (!unitError && unitData && unitData.length > 0) {
+          unitId = unitData[0].unit_id;
+          if (!branch) {
+            branch = unitData[0].branch;
+          }
+        } else {
+          // Try to get any unit if no available units
+          const { data: anyUnit } = await supabase
+            .from('units')
+            .select('unit_id, branch')
+            .limit(1);
+
+          if (anyUnit && anyUnit.length > 0) {
+            unitId = anyUnit[0].unit_id;
+            if (!branch) {
+              branch = anyUnit[0].branch;
+            }
+          }
         }
-      } else {
-        unitId = unitData[0].unit_id;
       }
 
       // Insert maintenance request into database
@@ -1002,6 +1047,7 @@ const TenantDashboard = () => {
         .insert({
           tenant_id: tenantRecord.tenant_id,
           unit_id: unitId,
+          branch: branch,
           description: maintenanceForm.description,
           priority: maintenanceForm.priority,
           status: 'pending',

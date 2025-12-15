@@ -71,6 +71,8 @@ const CaretakerDashboard = () => {
     recentActivity: fetchedRecentActivity,
     recentActivityLoading,
     unitStats,
+    maintenanceRequests: fetchedMaintenanceRequests,
+    maintenanceRequestsLoading,
     isLoading,
     fetchPayments,
     fetchDocuments,
@@ -925,7 +927,8 @@ const CaretakerDashboard = () => {
   });
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    const normalizedStatus = status?.toLowerCase() || '';
+    switch (normalizedStatus) {
       case 'pending':
         return (
           <div className="flex items-center space-x-2">
@@ -934,6 +937,7 @@ const CaretakerDashboard = () => {
           </div>
         );
       case 'in progress':
+      case 'in_progress':
         return (
           <div className="flex items-center space-x-2">
             <Wrench className="w-4 h-4 text-blue-500" />
@@ -941,6 +945,7 @@ const CaretakerDashboard = () => {
           </div>
         );
       case 'completed':
+      case 'resolved':
         return (
           <div className="flex items-center space-x-2">
             <CheckCircle className="w-4 h-4 text-green-500" />
@@ -955,16 +960,53 @@ const CaretakerDashboard = () => {
           </div>
         );
       default:
-        return <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">{status}</span>;
+        return <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">{status || 'unknown'}</span>;
     }
   };
 
-  // Maintenance data (dummy for now)
-  const maintenanceRequests: any[] = [];
-  const maintenancePendingCount = 0;
-  const maintenanceInProgressCount = 0;
-  const maintenanceCompletedCount = 0;
-  const maintenanceTotalCount = 0;
+  // Filter maintenance requests based on selected filter
+  const filteredMaintenanceRequests = fetchedMaintenanceRequests.filter((request) => {
+    if (maintenanceFilter === 'all') return true;
+    const requestStatus = request.status?.toLowerCase() || '';
+    const filterStatus = maintenanceFilter.toLowerCase();
+    
+    // Handle status variations
+    if (filterStatus === 'in_progress') {
+      return requestStatus === 'in_progress' || requestStatus === 'in progress';
+    }
+    if (filterStatus === 'completed') {
+      return requestStatus === 'completed' || requestStatus === 'resolved';
+    }
+    return requestStatus === filterStatus;
+  });
+
+  // Calculate maintenance statistics
+  const maintenancePendingCount = fetchedMaintenanceRequests.filter(
+    (r) => r.status?.toLowerCase() === 'pending'
+  ).length;
+  const maintenanceInProgressCount = fetchedMaintenanceRequests.filter(
+    (r) => r.status?.toLowerCase() === 'in_progress' || r.status?.toLowerCase() === 'in progress'
+  ).length;
+  const maintenanceCompletedCount = fetchedMaintenanceRequests.filter(
+    (r) => r.status?.toLowerCase() === 'completed' || r.status?.toLowerCase() === 'resolved'
+  ).length;
+  const maintenanceTotalCount = fetchedMaintenanceRequests.length;
+
+  // Format maintenance requests for display
+  const maintenanceRequests = filteredMaintenanceRequests.map((request) => {
+    // Handle nested data structure from Supabase
+    const unit = Array.isArray(request.units) ? request.units[0] : request.units;
+    const tenant = Array.isArray(request.tenants) ? request.tenants[0] : request.tenants;
+    
+    return {
+      ...request,
+      title: request.description || 'Maintenance Request',
+      unit_number: unit?.unit_number || 'N/A',
+      tenant_name: tenant 
+        ? `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() || 'Unknown'
+        : 'Unknown'
+    };
+  });
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
@@ -1123,6 +1165,7 @@ const CaretakerDashboard = () => {
               maintenanceCompletedCount={maintenanceCompletedCount}
               maintenanceTotalCount={maintenanceTotalCount}
               maintenanceRequests={maintenanceRequests}
+              maintenanceRequestsLoading={maintenanceRequestsLoading}
               getPriorityBadge={getPriorityBadge}
               getStatusBadge={getStatusBadge}
             />

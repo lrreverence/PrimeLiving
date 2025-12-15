@@ -12,6 +12,7 @@ interface MaintenanceTabProps {
   maintenanceCompletedCount: number;
   maintenanceTotalCount: number;
   maintenanceRequests: any[];
+  maintenanceRequestsLoading?: boolean;
   getPriorityBadge: (priority: string) => React.ReactNode;
   getStatusBadge: (status: string) => React.ReactNode;
 }
@@ -24,6 +25,7 @@ export const MaintenanceTab = ({
   maintenanceCompletedCount,
   maintenanceTotalCount,
   maintenanceRequests,
+  maintenanceRequestsLoading = false,
   getPriorityBadge,
   getStatusBadge
 }: MaintenanceTabProps) => {
@@ -122,7 +124,12 @@ export const MaintenanceTab = ({
           <p className="text-sm text-gray-600 mt-1">View and manage all maintenance requests</p>
         </CardHeader>
         <CardContent>
-          {maintenanceRequests.length === 0 ? (
+          {maintenanceRequestsLoading ? (
+            <div className="text-center py-8 text-gray-500">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+              <p>Loading maintenance requests...</p>
+            </div>
+          ) : maintenanceRequests.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Wrench className="w-12 h-12 mx-auto mb-4 text-gray-300" />
               <p>No maintenance requests found</p>
@@ -141,7 +148,8 @@ export const MaintenanceTab = ({
                       <p className="text-sm text-gray-600 mb-2">{request.description}</p>
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span>Unit: {request.unit_number || 'N/A'}</span>
-                        <span>Created: {new Date(request.created_date).toLocaleDateString()}</span>
+                        {request.tenant_name && <span>Tenant: {request.tenant_name}</span>}
+                        <span>Created: {new Date(request.created_date || request.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>

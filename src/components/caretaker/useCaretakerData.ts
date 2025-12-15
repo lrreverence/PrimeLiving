@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +20,8 @@ export const useCaretakerData = () => {
     occupied: 0,
     vacant: 0
   });
+  const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([]);
+  const [maintenanceRequestsLoading, setMaintenanceRequestsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -363,13 +365,6 @@ export const useCaretakerData = () => {
     }
   }, [landlordData]);
 
-  // Load units when landlord data and tenants are available
-  useEffect(() => {
-    if (landlordData?.branch && tenants.length >= 0) {
-      fetchUnits();
-    }
-  }, [landlordData, tenants]);
-
   // Helper function to format time ago
   const formatTimeAgo = (date: Date): string => {
     const now = new Date();
@@ -389,6 +384,78 @@ export const useCaretakerData = () => {
       return 'just now';
     }
   };
+
+  // Fetch maintenance requests filtered by branch
+  const fetchMaintenanceRequests = useCallback(async () => {
+    const branch = landlordData?.branch;
+    if (!branch) {
+      return;
+    }
+
+    try {
+      setMaintenanceRequestsLoading(true);
+      
+      // Fetch maintenance requests directly filtered by branch
+      const { data, error } = await supabase
+        .from('maintenance_requests')
+        .select(`
+          *,
+          tenants (
+            tenant_id,
+            first_name,
+            last_name,
+            email,
+            branch
+          ),
+          units (
+            unit_id,
+            unit_number,
+            branch
+          )
+        `)
+        .eq('branch', branch)
+        .order('created_date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching maintenance requests:', error);
+        toast({
+          title: "Error",
+          description: `Failed to load maintenance requests: ${error.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (data) {
+        setMaintenanceRequests(data);
+      } else {
+        setMaintenanceRequests([]);
+      }
+    } catch (error) {
+      console.error('Error fetching maintenance requests:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load maintenance requests. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setMaintenanceRequestsLoading(false);
+    }
+  }, [landlordData, toast]);
+
+  // Load units when landlord data and tenants are available
+  useEffect(() => {
+    if (landlordData?.branch && tenants.length >= 0) {
+      fetchUnits();
+    }
+  }, [landlordData, tenants]);
+
+  // Load maintenance requests when landlord data is available
+  useEffect(() => {
+    if (landlordData?.branch) {
+      fetchMaintenanceRequests();
+    }
+  }, [landlordData, fetchMaintenanceRequests]);
 
   // Fetch recent activity (payments, maintenance requests, expiring contracts)
   const fetchRecentActivity = async () => {
@@ -571,12 +638,15 @@ export const useCaretakerData = () => {
     units,
     unitsLoading,
     unitStats,
+    maintenanceRequests,
+    maintenanceRequestsLoading,
     isLoading,
     fetchTenants,
     fetchPayments,
     fetchDocuments,
     fetchRecentActivity,
     fetchUnits,
+    fetchMaintenanceRequests,
     setPayments
   };
 };
