@@ -68,6 +68,9 @@ const CaretakerDashboard = () => {
     paymentsLoading,
     documents,
     documentsLoading,
+    recentActivity: fetchedRecentActivity,
+    recentActivityLoading,
+    unitStats,
     isLoading,
     fetchPayments,
     fetchDocuments,
@@ -851,19 +854,19 @@ const CaretakerDashboard = () => {
   const overviewMetrics = [
     {
       title: 'Total Units',
-      value: '24',
+      value: String(unitStats.total),
       icon: <Building2 className="w-6 h-6" />,
       color: 'text-blue-600'
     },
     {
       title: 'Occupied Units',
-      value: '18',
+      value: String(unitStats.occupied),
       icon: <Users className="w-6 h-6" />,
       color: 'text-green-600'
     },
     {
       title: 'Vacant Units',
-      value: '6',
+      value: String(unitStats.vacant),
       icon: <Home className="w-6 h-6" />,
       color: 'text-gray-600'
     },
@@ -898,30 +901,28 @@ const CaretakerDashboard = () => {
     }
   ];
 
-  const recentActivity = [
-    {
-      type: 'payment',
-      title: 'Payment received from Ana Garcia (A-101)',
-      time: '2 hours ago',
-      amount: '₱15,000',
-      status: 'completed',
-      icon: <CreditCard className="w-5 h-5 text-green-600" />
-    },
-    {
-      type: 'maintenance',
-      title: 'Maintenance request from Unit B-205',
-      time: '1 day ago',
-      status: 'pending',
-      icon: <Wrench className="w-5 h-5 text-blue-600" />
-    },
-    {
-      type: 'contract',
-      title: 'Contract expiring for Unit C-304',
-      time: '3 days ago',
-      status: 'urgent',
-      icon: <FileText className="w-5 h-5 text-orange-600" />
+  // Map fetched recent activity to format with React icons
+  const recentActivity = fetchedRecentActivity.map((activity) => {
+    let icon;
+    switch (activity.icon) {
+      case 'payment':
+        icon = <CreditCard className="w-5 h-5 text-green-600" />;
+        break;
+      case 'maintenance':
+        icon = <Wrench className="w-5 h-5 text-blue-600" />;
+        break;
+      case 'contract':
+        icon = <FileText className="w-5 h-5 text-orange-600" />;
+        break;
+      default:
+        icon = <Clock className="w-5 h-5 text-gray-600" />;
     }
-  ];
+
+    return {
+      ...activity,
+      icon
+    };
+  });
 
   const getStatusBadge = (status: string) => {
     switch (status) {

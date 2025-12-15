@@ -5,47 +5,8 @@
  * 
  * Current Implementation:
  * - Notifications are saved to the database and appear in tenant dashboards
- * - Email/SMS sending is prepared but needs actual service integration
- * 
- * To enable actual email/SMS sending, you can:
- * 
- * 1. Email Options:
- *    - Use Supabase Edge Functions with SendGrid, AWS SES, or similar
- *    - Use Supabase's built-in email (limited functionality)
- *    - Integrate with services like Resend, Mailgun, etc.
- * 
- * 2. SMS Options:
- *    - Use Supabase Edge Functions with Twilio
- *    - Use other SMS providers like AWS SNS, MessageBird, etc.
- * 
- * Example Edge Function for Email (supabase/functions/send-email/index.ts):
- * ```typescript
- * import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
- * 
- * serve(async (req) => {
- *   const { to, subject, message } = await req.json()
- *   
- *   // Use your email service here
- *   // Example with SendGrid:
- *   const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
- *     method: "POST",
- *     headers: {
- *       "Authorization": `Bearer ${Deno.env.get("SENDGRID_API_KEY")}`,
- *       "Content-Type": "application/json",
- *     },
- *     body: JSON.stringify({
- *       personalizations: [{ to: [{ email: to }] }],
- *       from: { email: "noreply@primeliving.com" },
- *       subject: subject,
- *       content: [{ type: "text/plain", value: message }],
- *     }),
- *   })
- *   
- *   return new Response(JSON.stringify({ success: response.ok }), {
- *     headers: { "Content-Type": "application/json" },
- *   })
- * })
- * ```
+ * - Email sending via Supabase Edge Function (Resend/SendGrid)
+ * - SMS sending via Supabase Edge Function (TextBee API)
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -101,9 +62,8 @@ export const sendEmailNotification = async (
 };
 
 /**
- * Send SMS notification to a tenant
- * NOTE: SMS functionality is saved for later implementation
- * @param phoneNumber - Tenant's phone number
+ * Send SMS notification to a tenant via TextBee API
+ * @param phoneNumber - Tenant's phone number (will be formatted to E.164)
  * @param message - SMS message body
  * @returns Promise with success status
  */
@@ -112,10 +72,24 @@ export const sendSMSNotification = async (
   message: string
 ): Promise<NotificationResult> => {
   try {
-    // SMS functionality saved for later implementation
-    // When ready to implement, uncomment and set up:
-    /*
-    // Option 1: Use Supabase Edge Function
+    // Validate phone number
+    if (!phoneNumber || phoneNumber === 'N/A' || phoneNumber.trim().length === 0) {
+      console.warn('Invalid or missing phone number:', phoneNumber);
+      return { success: false, error: 'Invalid or missing phone number' };
+    }
+
+    // Validate message
+    if (!message || message.trim().length === 0) {
+      console.warn('Invalid or empty message');
+      return { success: false, error: 'Message cannot be empty' };
+    }
+
+    console.log('Calling send-sms Edge Function with:', { 
+      phoneNumber, 
+      messageLength: message.length 
+    });
+    
+    // Use Supabase Edge Function for SMS sending via TextBee
     const { data, error } = await supabase.functions.invoke('send-sms', {
       body: {
         to: phoneNumber,
@@ -123,18 +97,21 @@ export const sendSMSNotification = async (
       },
     });
 
+    console.log('SMS Edge Function response:', { data, error });
+
     if (error) {
       console.error('Error calling SMS function:', error);
       return { success: false, error };
     }
 
-    return { success: true };
-    */
+    // Check if the function returned an error
+    if (data && !data.success) {
+      console.error('SMS function returned error:', data.error);
+      return { success: false, error: data.error || 'Unknown error' };
+    }
 
-    // For now, just log (notifications are saved to database)
-    // SMS will be implemented later
-    console.log('SMS notification saved for later implementation:', phoneNumber);
-    return { success: true };
+    console.log('SMS sent successfully via Edge Function');
+    return { success: true, data };
   } catch (error) {
     console.error('Error sending SMS notification:', error);
     return { success: false, error };

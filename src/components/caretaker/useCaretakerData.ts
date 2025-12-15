@@ -11,6 +11,15 @@ export const useCaretakerData = () => {
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [documents, setDocuments] = useState<any[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [recentActivityLoading, setRecentActivityLoading] = useState(false);
+  const [units, setUnits] = useState<any[]>([]);
+  const [unitsLoading, setUnitsLoading] = useState(false);
+  const [unitStats, setUnitStats] = useState({
+    total: 0,
+    occupied: 0,
+    vacant: 0
+  });
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -202,6 +211,130 @@ export const useCaretakerData = () => {
     }
   };
 
+  // Fetch units and calculate statistics
+  const fetchUnits = async () => {
+    if (!landlordData?.branch) {
+      console.log('No landlord branch found for units');
+      return;
+    }
+
+    try {
+      setUnitsLoading(true);
+      
+      // Get tenant IDs in the same branch to filter units by contracts
+      const tenantIds = tenants.length > 0 ? tenants.map(t => t.tenant_id) : [];
+      
+      // Fetch all units with their contracts
+      let query = supabase
+        .from('units')
+        .select(`
+          *,
+          contracts (
+            contract_id,
+            status,
+            tenant_id,
+            tenants (
+              tenant_id,
+              branch
+            )
+          )
+        `);
+
+      // If landlord_id exists, filter by it; otherwise get all units
+      if (landlordData.landlord_id) {
+        query = query.eq('landlord_id', landlordData.landlord_id);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching units:', error);
+        toast({
+          title: "Error",
+          description: `Failed to load units: ${error.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (data) {
+        // Filter units that are associated with tenants in the same branch
+        // A unit is relevant if:
+        // 1. It has a contract with a tenant in this branch, OR
+        // 2. It has no contracts (available units that could be assigned to this branch)
+        const relevantUnits = data.filter(unit => {
+          const contracts = unit.contracts;
+          
+          // If unit has no contracts, include it (available for assignment)
+          if (!contracts || (Array.isArray(contracts) && contracts.length === 0)) {
+            return true;
+          }
+          
+          // Check if unit has contracts with tenants in this branch
+          const contractArray = Array.isArray(contracts) ? contracts : [contracts];
+          return contractArray.some((contract: any) => {
+            // Check if contract tenant is in this branch
+            const tenant = contract?.tenants;
+            if (tenant) {
+              const tenantBranch = Array.isArray(tenant) ? tenant[0]?.branch : tenant?.branch;
+              return tenantBranch === landlordData.branch;
+            }
+            // Fallback: check if tenant_id is in our tenant list
+            return contract?.tenant_id && tenantIds.includes(contract.tenant_id);
+          });
+        });
+
+        setUnits(relevantUnits);
+        
+        // Calculate statistics based on units table status field
+        const total = relevantUnits.length;
+        // Count occupied units: status = 'occupied' OR has active contract with tenant in this branch
+        const occupied = relevantUnits.filter(unit => {
+          // Check status field first (most reliable)
+          if (unit.status?.toLowerCase() === 'occupied') {
+            return true;
+          }
+          
+          // Also check for active contracts with tenants in this branch
+          const contracts = unit.contracts;
+          if (contracts) {
+            const contractArray = Array.isArray(contracts) ? contracts : [contracts];
+            return contractArray.some((contract: any) => {
+              if (contract?.status === 'active') {
+                const tenant = contract?.tenants;
+                if (tenant) {
+                  const tenantBranch = Array.isArray(tenant) ? tenant[0]?.branch : tenant?.branch;
+                  return tenantBranch === landlordData.branch;
+                }
+                return contract?.tenant_id && tenantIds.includes(contract.tenant_id);
+              }
+              return false;
+            });
+          }
+          
+          return false;
+        }).length;
+        
+        const vacant = total - occupied;
+
+        setUnitStats({
+          total,
+          occupied,
+          vacant
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching units:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load units. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setUnitsLoading(false);
+    }
+  };
+
   // Load landlord data when component mounts
   useEffect(() => {
     if (user) {
@@ -230,6 +363,201 @@ export const useCaretakerData = () => {
     }
   }, [landlordData]);
 
+  // Load units when landlord data and tenants are available
+  useEffect(() => {
+    if (landlordData?.branch && tenants.length >= 0) {
+      fetchUnits();
+    }
+  }, [landlordData, tenants]);
+
+  // Helper function to format time ago
+  const formatTimeAgo = (date: Date): string => {
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInSeconds = Math.floor(diffInMs / 1000);
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+
+    if (diffInDays > 0) {
+      return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+    } else if (diffInHours > 0) {
+      return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    } else if (diffInMinutes > 0) {
+      return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+    } else {
+      return 'just now';
+    }
+  };
+
+  // Fetch recent activity (payments, maintenance requests, expiring contracts)
+  const fetchRecentActivity = async () => {
+    if (!landlordData?.branch || tenants.length === 0) {
+      return;
+    }
+
+    try {
+      setRecentActivityLoading(true);
+      const tenantIds = tenants.map(t => t.tenant_id);
+      const activities: any[] = [];
+
+      // Fetch recent payments (last 5, ordered by date)
+      const { data: recentPayments, error: paymentsError } = await supabase
+        .from('payments')
+        .select(`
+          *,
+          tenants (
+            tenant_id,
+            first_name,
+            last_name,
+            email
+          ),
+          contracts (
+            *,
+            units (
+              unit_number
+            )
+          )
+        `)
+        .in('tenant_id', tenantIds)
+        .order('payment_date', { ascending: false })
+        .limit(5);
+
+      if (!paymentsError && recentPayments) {
+        recentPayments.forEach((payment: any) => {
+          const tenant = payment.tenants;
+          const unit = payment.contracts?.units;
+          const tenantName = tenant 
+            ? `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() || tenant.email?.split('@')[0] || 'Unknown'
+            : 'Unknown';
+          const unitNumber = unit?.unit_number || 'N/A';
+          const paymentDate = new Date(payment.payment_date);
+          const status = (payment.status?.toLowerCase() === 'confirmed' || 
+                         payment.status?.toLowerCase() === 'completed' || 
+                         payment.status?.toLowerCase() === 'paid') 
+            ? 'completed' 
+            : payment.status?.toLowerCase() || 'pending';
+
+          activities.push({
+            type: 'payment',
+            title: `Payment received from ${tenantName} (${unitNumber})`,
+            time: formatTimeAgo(paymentDate),
+            timestamp: paymentDate.getTime(),
+            amount: `₱${parseFloat(payment.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            status: status,
+            icon: 'payment'
+          });
+        });
+      }
+
+      // Fetch recent maintenance requests (last 5, ordered by date)
+      const { data: recentMaintenance, error: maintenanceError } = await supabase
+        .from('maintenance_requests')
+        .select(`
+          *,
+          tenants (
+            tenant_id,
+            first_name,
+            last_name,
+            email
+          ),
+          units (
+            unit_number
+          )
+        `)
+        .in('tenant_id', tenantIds)
+        .order('created_date', { ascending: false })
+        .limit(5);
+
+      if (!maintenanceError && recentMaintenance) {
+        recentMaintenance.forEach((request: any) => {
+          const unit = request.units;
+          const unitNumber = unit?.unit_number || 'N/A';
+          const createdDate = new Date(request.created_date);
+          const status = request.status?.toLowerCase() || 'pending';
+
+          activities.push({
+            type: 'maintenance',
+            title: `Maintenance request from Unit ${unitNumber}`,
+            time: formatTimeAgo(createdDate),
+            timestamp: createdDate.getTime(),
+            status: status,
+            icon: 'maintenance'
+          });
+        });
+      }
+
+      // Fetch contracts expiring soon (within next 30 days)
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+      const now = new Date();
+
+      const { data: expiringContracts, error: contractsError } = await supabase
+        .from('contracts')
+        .select(`
+          *,
+          tenants (
+            tenant_id,
+            first_name,
+            last_name,
+            email
+          ),
+          units (
+            unit_number
+          )
+        `)
+        .in('tenant_id', tenantIds)
+        .eq('status', 'active')
+        .gte('end_date', now.toISOString())
+        .lte('end_date', thirtyDaysFromNow.toISOString())
+        .order('end_date', { ascending: true })
+        .limit(5);
+
+      if (!contractsError && expiringContracts) {
+        expiringContracts.forEach((contract: any) => {
+          const unit = contract.units;
+          const unitNumber = unit?.unit_number || 'N/A';
+          const endDate = new Date(contract.end_date);
+          const daysUntilExpiry = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          
+          let timeText: string;
+          if (daysUntilExpiry === 0) {
+            timeText = 'expires today';
+          } else if (daysUntilExpiry === 1) {
+            timeText = 'expires tomorrow';
+          } else {
+            timeText = `expires in ${daysUntilExpiry} days`;
+          }
+          
+          activities.push({
+            type: 'contract',
+            title: `Contract expiring for Unit ${unitNumber}`,
+            time: timeText,
+            timestamp: endDate.getTime(),
+            status: daysUntilExpiry <= 7 ? 'urgent' : 'pending',
+            icon: 'contract'
+          });
+        });
+      }
+
+      // Sort all activities by timestamp (most recent first) and take top 10
+      activities.sort((a, b) => b.timestamp - a.timestamp);
+      setRecentActivity(activities.slice(0, 10));
+
+    } catch (error) {
+      console.error('Error fetching recent activity:', error);
+    } finally {
+      setRecentActivityLoading(false);
+    }
+  };
+
+  // Load recent activity when tenants and payments are available
+  useEffect(() => {
+    if (tenants.length > 0 && landlordData?.branch) {
+      fetchRecentActivity();
+    }
+  }, [tenants, payments, landlordData]);
+
   return {
     landlordData,
     tenants,
@@ -238,10 +566,17 @@ export const useCaretakerData = () => {
     paymentsLoading,
     documents,
     documentsLoading,
+    recentActivity,
+    recentActivityLoading,
+    units,
+    unitsLoading,
+    unitStats,
     isLoading,
     fetchTenants,
     fetchPayments,
     fetchDocuments,
+    fetchRecentActivity,
+    fetchUnits,
     setPayments
   };
 };
