@@ -29,6 +29,7 @@ import { PaymentsTab } from '@/components/caretaker/PaymentsTab';
 import { DocumentsTab } from '@/components/caretaker/DocumentsTab';
 import { NotificationsTab } from '@/components/caretaker/NotificationsTab';
 import { MaintenanceTab } from '@/components/caretaker/MaintenanceTab';
+import { UnitsTab } from '@/components/caretaker/UnitsTab';
 import { sendEmailNotification, sendSMSNotification } from '@/lib/notificationService';
 
 const CaretakerDashboard = () => {
@@ -70,6 +71,8 @@ const CaretakerDashboard = () => {
     documentsLoading,
     recentActivity: fetchedRecentActivity,
     recentActivityLoading,
+    units,
+    unitsLoading,
     unitStats,
     maintenanceRequests: fetchedMaintenanceRequests,
     maintenanceRequestsLoading,
@@ -1058,9 +1061,10 @@ const CaretakerDashboard = () => {
       {/* Navigation */}
       <nav className="bg-white border-b border-gray-200 px-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="tenants">Tenants</TabsTrigger>
+            <TabsTrigger value="units">Units</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
@@ -1087,6 +1091,13 @@ const CaretakerDashboard = () => {
               tenantsLoading={tenantsLoading}
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
+            />
+          </TabsContent>
+
+          <TabsContent value="units">
+            <UnitsTab
+              units={units}
+              unitsLoading={unitsLoading}
             />
           </TabsContent>
 
