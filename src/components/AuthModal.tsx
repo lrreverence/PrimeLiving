@@ -107,8 +107,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-2xl font-bold">
               {activeTab === 'login' ? 'Welcome Back' : 
                activeTab === 'signup' ? 'Join PrimeLiving' : 'Portal Access'}
@@ -123,13 +123,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'login' | 'signup')}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login" className="mt-6">
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'login' | 'signup')}>
+              <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
+                <TabsTrigger value="login">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="login" className="mt-6">
               {loginStep === 'role' ? (
                 <div className="space-y-6">
                   <div className="text-center">
@@ -281,7 +282,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
               )}
             </TabsContent>
 
-          </Tabs>
+            </Tabs>
+          </div>
         </DialogContent>
       </Dialog>
 
