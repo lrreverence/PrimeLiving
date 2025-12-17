@@ -8,9 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Mail, Lock, User, Phone, Building2, Upload, FileText, X } from 'lucide-react';
+import { Loader2, Mail, Lock, User, Phone, Building2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -19,10 +18,6 @@ const signupSchema = z.object({
   confirmPassword: z.string(),
   phone: z.string().optional(),
   branch: z.string().min(1, 'Please select a branch'),
-  validId: z.instanceof(FileList).optional().refine((files) => {
-    // Only require valid ID for tenants
-    return true; // We'll check this in the component
-  }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -39,9 +34,6 @@ interface SignupFormProps {
 const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin, selectedRole }) => {
   const { signup, isLoading } = useAuth();
   const [error, setError] = useState<string>('');
-  const [validIdFile, setValidIdFile] = useState<File | null>(null);
-  const [validIdPreview, setValidIdPreview] = useState<string | null>(null);
-  const [uploadingId, setUploadingId] = useState(false);
 
   const {
     register,
@@ -52,88 +44,9 @@ const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin, sel
     resolver: zodResolver(signupSchema),
   });
 
-  const handleValidIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-      if (!validTypes.includes(file.type)) {
-        setError('Please upload a valid ID in JPG, PNG, or PDF format');
-        return;
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('File size must be less than 5MB');
-        return;
-      }
-      
-      setValidIdFile(file);
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setValidIdPreview(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      } else {
-        setValidIdPreview(null);
-      }
-      setError('');
-    }
-  };
-
-  const removeValidId = () => {
-    setValidIdFile(null);
-    setValidIdPreview(null);
-  };
-
   const onSubmit = async (data: SignupFormData) => {
     setError('');
     
-    // Require valid ID for tenants
-    if (selectedRole === 'tenant' && !validIdFile) {
-      setError('Please upload a valid ID document');
-      return;
-    }
-
-    // If tenant, upload the valid ID first
-    let validIdUrl: string | undefined = undefined;
-    if (selectedRole === 'tenant' && validIdFile) {
-      try {
-        setUploadingId(true);
-        const fileExt = validIdFile.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `valid-ids/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('tenant-documents')
-          .upload(filePath, validIdFile, {
-            cacheControl: '3600',
-            upsert: false
-          });
-
-        if (uploadError) {
-          console.error('Upload error:', uploadError);
-          setError('Failed to upload valid ID. Please try again.');
-          setUploadingId(false);
-          return;
-        }
-
-        const { data: urlData } = supabase.storage
-          .from('tenant-documents')
-          .getPublicUrl(filePath);
-
-        validIdUrl = urlData.publicUrl;
-      } catch (err) {
-        console.error('Error uploading file:', err);
-        setError('Failed to upload valid ID. Please try again.');
-        setUploadingId(false);
-        return;
-      } finally {
-        setUploadingId(false);
-      }
-    }
-
     const result = await signup(
       data.name, 
       data.email, 
@@ -141,7 +54,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin, sel
       data.phone, 
       selectedRole || undefined, 
       data.branch,
-      validIdUrl
+      undefined // No valid ID URL - will be uploaded after signup
     );
     
     if (result.success) {
@@ -244,77 +157,6 @@ const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin, sel
               )}
             </div>
 
-          {/* Valid ID Upload - Only for tenants */}
-          {selectedRole === 'tenant' && (
-            <div className="space-y-2">
-              <Label htmlFor="validId">
-                Valid ID <span className="text-destructive">*</span>
-              </Label>
-              <div className="space-y-2">
-                {!validIdFile ? (
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                    <input
-                      type="file"
-                      id="validId"
-                      accept="image/jpeg,image/jpg,image/png,application/pdf"
-                      onChange={handleValidIdChange}
-                      className="hidden"
-                    />
-                    <label
-                      htmlFor="validId"
-                      className="cursor-pointer flex flex-col items-center space-y-2"
-                    >
-                      <Upload className="w-8 h-8 text-gray-400" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">
-                          Click to upload or drag and drop
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          JPG, PNG, or PDF (Max 5MB)
-                        </p>
-                      </div>
-                    </label>
-                  </div>
-                ) : (
-                  <div className="border-2 border-gray-300 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <FileText className="w-8 h-8 text-blue-600" />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{validIdFile.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {(validIdFile.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={removeValidId}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    {validIdPreview && (
-                      <div className="mt-4">
-                        <img
-                          src={validIdPreview}
-                          alt="Valid ID preview"
-                          className="max-w-full h-48 object-contain rounded border"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-gray-500">
-                Accepted: Driver's License, Passport, National ID, or any government-issued ID
-              </p>
-            </div>
-          )}
-
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <div className="relative">
@@ -352,12 +194,12 @@ const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin, sel
           <Button
             type="submit"
             className="w-full"
-            disabled={isLoading || uploadingId}
+            disabled={isLoading}
           >
-            {(isLoading || uploadingId) ? (
+            {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {uploadingId ? 'Uploading ID...' : 'Creating Account...'}
+                Creating Account...
               </>
             ) : (
               'Create Account'
