@@ -1532,7 +1532,7 @@ const TenantDashboard = () => {
                     <div className="grid grid-cols-1 gap-4">
                       <div className="flex justify-between">
                         <span className="text-gray-600">Contract Period:</span>
-                        <span className="font-medium">2024-01-15 to 2025-01-14</span>
+                        <span className="font-medium">2025-01-15 to 2026-01-14</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Monthly Rent:</span>
@@ -1610,17 +1610,17 @@ const TenantDashboard = () => {
                       <FileText className="w-16 h-16 text-gray-400 mb-4" />
                       <div className="text-center space-y-2">
                         <h4 className="font-semibold text-gray-900">Prime Living Business Permit</h4>
-                        <p className="text-sm text-gray-600">Business Permit No. 2024-001234</p>
-                        <p className="text-sm text-gray-600">Issued: January 1, 2024</p>
-                        <p className="text-sm text-gray-600">Valid Until: December 31, 2024</p>
+                        <p className="text-sm text-gray-600">Business Permit No. 2025-001234</p>
+                        <p className="text-sm text-gray-600">Issued: January 1, 2025</p>
+                        <p className="text-sm text-gray-600">Valid Until: December 31, 2025</p>
                         <div className="mt-4 w-full max-w-md h-64 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center">
                           <div className="text-center p-4">
                             <Building2 className="w-20 h-20 text-gray-300 mx-auto mb-4" />
                             <p className="text-lg font-bold text-gray-700 mb-2">BUSINESS PERMIT</p>
                             <p className="text-sm text-gray-600 mb-1">Prime Living Properties</p>
                             <p className="text-xs text-gray-500">123 Main Street, Metro Manila</p>
-                            <p className="text-xs text-gray-500 mt-2">Permit No: 2024-001234</p>
-                            <p className="text-xs text-gray-500">Valid: Jan 1, 2024 - Dec 31, 2024</p>
+                            <p className="text-xs text-gray-500 mt-2">Permit No: 2025-001234</p>
+                            <p className="text-xs text-gray-500">Valid: Jan 1, 2025 - Dec 31, 2025</p>
                           </div>
                         </div>
                         <Button 
@@ -1677,13 +1677,13 @@ const TenantDashboard = () => {
                                         <span class="label">Business Address:</span> 123 Main Street, Metro Manila
                                       </div>
                                       <div class="info-row">
-                                        <span class="label">Permit Number:</span> 2024-001234
+                                        <span class="label">Permit Number:</span> 2025-001234
                                       </div>
                                       <div class="info-row">
-                                        <span class="label">Issued Date:</span> January 1, 2024
+                                        <span class="label">Issued Date:</span> January 1, 2025
                                       </div>
                                       <div class="info-row">
-                                        <span class="label">Valid Until:</span> December 31, 2024
+                                        <span class="label">Valid Until:</span> December 31, 2025
                                       </div>
                                       <div class="info-row">
                                         <span class="label">Business Type:</span> Real Estate Rental Services
@@ -1691,7 +1691,7 @@ const TenantDashboard = () => {
                                       <div style="margin-top: 40px; text-align: center; border-top: 2px solid #ccc; padding-top: 20px;">
                                         <p>This is to certify that the above-named business is authorized to operate in accordance with local business regulations.</p>
                                         <p style="margin-top: 30px;"><strong>Issued by:</strong> Local Government Unit</p>
-                                        <p><strong>Date:</strong> January 1, 2024</p>
+                                        <p><strong>Date:</strong> January 1, 2025</p>
                                       </div>
                                     </div>
                                   </body>
@@ -2394,7 +2394,7 @@ const TenantDashboard = () => {
 
               {/* Payment Summary Section */}
               <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Payment Summary (2024)</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Payment Summary (2025)</h3>
                 <p className="text-gray-600 mb-6">Overview of your payment activity</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -2465,7 +2465,7 @@ const TenantDashboard = () => {
                       </CardContent>
                     </Card>
 
-                    <Card>
+                    {/* <Card>
                       <CardContent className="p-4 text-center">
                         <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                           <DollarSign className="w-6 h-6 text-green-600" />
@@ -2473,9 +2473,9 @@ const TenantDashboard = () => {
                         <p className="text-sm font-medium text-gray-600">Cash</p>
                         <p className="text-2xl font-bold text-gray-900">20%</p>
                       </CardContent>
-                    </Card>
+                    </Card> */}
 
-                    <Card>
+                    {/* <Card>
                       <CardContent className="p-4 text-center">
                         <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                           <Building2 className="w-6 h-6 text-purple-600" />
@@ -2483,7 +2483,7 @@ const TenantDashboard = () => {
                         <p className="text-sm font-medium text-gray-600">Bank Transfer</p>
                         <p className="text-2xl font-bold text-gray-900">20%</p>
                       </CardContent>
-                    </Card>
+                    </Card> */}
                   </div>
                 </div>
 
@@ -2501,8 +2501,8 @@ const TenantDashboard = () => {
                               <Calendar className="w-6 h-6 text-yellow-600" />
                             </div>
                             <div>
-                              <h5 className="font-semibold text-gray-900">September 2024 Rent</h5>
-                              <p className="text-sm text-gray-600">Due: 2024-09-15</p>
+                              <h5 className="font-semibold text-gray-900">September 2025 Rent</h5>
+                              <p className="text-sm text-gray-600">Due: 2025-09-15</p>
                             </div>
                           </div>
                           <div className="text-right">
@@ -2521,8 +2521,8 @@ const TenantDashboard = () => {
                               <Calendar className="w-6 h-6 text-blue-600" />
                             </div>
                             <div>
-                              <h5 className="font-semibold text-gray-900">October 2024 Rent</h5>
-                              <p className="text-sm text-gray-600">Due: 2024-10-15</p>
+                              <h5 className="font-semibold text-gray-900">October 2025 Rent</h5>
+                              <p className="text-sm text-gray-600">Due: 2025-10-15</p>
                             </div>
                           </div>
                           <div className="text-right">
@@ -2622,16 +2622,6 @@ const TenantDashboard = () => {
                           className="w-full justify-start"
                         >
                           Full Rent (₱15,000)
-                        </Button>
-                        <Button
-                          variant={paymentOption === 'half' ? 'default' : 'outline'}
-                          onClick={() => {
-                            setPaymentOption('half');
-                            setPaymentAmount(7500);
-                          }}
-                          className="w-full justify-start"
-                        >
-                          Half Payment
                         </Button>
                       </div>
                     </div>
