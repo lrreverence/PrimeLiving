@@ -81,6 +81,7 @@ const CaretakerDashboard = () => {
     fetchDocuments,
     fetchTenants,
     fetchUnits,
+    fetchMaintenanceRequests,
     setPayments
   } = useCaretakerData();
 
@@ -1404,6 +1405,7 @@ const CaretakerDashboard = () => {
               maintenanceRequestsLoading={maintenanceRequestsLoading}
               getPriorityBadge={getPriorityBadge}
               getStatusBadge={getStatusBadge}
+              onMaintenanceUpdate={fetchMaintenanceRequests}
             />
           </TabsContent>
         </Tabs>
