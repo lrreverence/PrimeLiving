@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Search, Plus, Edit, Eye, Trash2, IdCard, X, Download, FileText, User, Mail, Phone, MapPin, Calendar, Users, Briefcase, Building, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -25,14 +27,24 @@ interface Tenant {
   tenantData?: any; // Full tenant data from database
 }
 
+interface Unit {
+  unit_id: number;
+  unit_number: string;
+  unit_type?: string;
+  monthly_rent?: number;
+  status?: string;
+}
+
 interface TenantsTabProps {
   tenants: Tenant[];
   tenantsLoading: boolean;
   searchTerm: string;
   onSearchChange: (value: string) => void;
+  units?: Unit[];
+  onTenantUpdate?: () => void;
 }
 
-export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange }: TenantsTabProps) => {
+export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange, units = [], onTenantUpdate }: TenantsTabProps) => {
   const { toast } = useToast();
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [viewIdModalOpen, setViewIdModalOpen] = useState(false);
@@ -41,6 +53,14 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [updatingUnit, setUpdatingUnit] = useState<number | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
+  const [updatingContractPeriod, setUpdatingContractPeriod] = useState<number | null>(null);
+  const [updatingMonthlyRent, setUpdatingMonthlyRent] = useState<number | null>(null);
+  const [contractPeriodForm, setContractPeriodForm] = useState<{ start_date: string; end_date: string } | null>(null);
+  const [contractPeriodPopoverOpen, setContractPeriodPopoverOpen] = useState<number | null>(null);
+  const [monthlyRentForm, setMonthlyRentForm] = useState<string>('');
+  const [monthlyRentPopoverOpen, setMonthlyRentPopoverOpen] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({
     first_name: '',
     last_name: '',
@@ -78,6 +98,306 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
       });
     }
     setEditModalOpen(true);
+  };
+
+  const handleUnitChange = async (tenantId: number, newUnitId: string) => {
+    if (!newUnitId) return;
+
+    try {
+      setUpdatingUnit(tenantId);
+      const tenant = tenants.find(t => t.id === tenantId);
+      if (!tenant || !tenant.tenantData) return;
+
+      // Get contract from tenant data
+      let contract = null;
+      if (Array.isArray(tenant.tenantData.contracts)) {
+        contract = tenant.tenantData.contracts.length > 0 ? tenant.tenantData.contracts[0] : null;
+      } else if (tenant.tenantData.contracts) {
+        contract = tenant.tenantData.contracts;
+      }
+
+      const unitId = parseInt(newUnitId);
+
+      if (contract && contract.contract_id) {
+        // Update existing contract
+        const { error } = await supabase
+          .from('contracts')
+          .update({
+            unit_id: unitId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('contract_id', contract.contract_id);
+
+        if (error) {
+          throw error;
+        }
+
+        toast({
+          title: "Unit Updated",
+          description: "Tenant's unit has been updated successfully.",
+        });
+      } else {
+        // Create new contract if none exists
+        const { error } = await supabase
+          .from('contracts')
+          .insert({
+            tenant_id: tenantId,
+            unit_id: unitId,
+            start_date: new Date().toISOString().split('T')[0],
+            end_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
+            status: 'active',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+
+        if (error) {
+          throw error;
+        }
+
+        toast({
+          title: "Contract Created",
+          description: "New contract has been created with the selected unit.",
+        });
+      }
+
+      // Refresh tenant data
+      if (onTenantUpdate) {
+        onTenantUpdate();
+      }
+    } catch (error: any) {
+      console.error('Error updating unit:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update unit: ${error.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setUpdatingUnit(null);
+    }
+  };
+
+  const handleStatusChange = async (tenantId: number, newStatus: string) => {
+    if (!newStatus) return;
+
+    try {
+      setUpdatingStatus(tenantId);
+      const tenant = tenants.find(t => t.id === tenantId);
+      if (!tenant || !tenant.tenantData) return;
+
+      // Get contract from tenant data
+      let contract = null;
+      if (Array.isArray(tenant.tenantData.contracts)) {
+        contract = tenant.tenantData.contracts.length > 0 ? tenant.tenantData.contracts[0] : null;
+      } else if (tenant.tenantData.contracts) {
+        contract = tenant.tenantData.contracts;
+      }
+
+      if (contract && contract.contract_id) {
+        // Update existing contract status
+        const { error } = await supabase
+          .from('contracts')
+          .update({
+            status: newStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq('contract_id', contract.contract_id);
+
+        if (error) {
+          throw error;
+        }
+
+        toast({
+          title: "Status Updated",
+          description: `Contract status has been updated to ${newStatus}.`,
+        });
+      } else {
+        // If no contract exists, we can't set status
+        toast({
+          title: "No Contract",
+          description: "Cannot update status: Tenant has no active contract.",
+          variant: "destructive"
+        });
+        setUpdatingStatus(null);
+        return;
+      }
+
+      // Refresh tenant data
+      if (onTenantUpdate) {
+        onTenantUpdate();
+      }
+    } catch (error: any) {
+      console.error('Error updating status:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update status: ${error.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setUpdatingStatus(null);
+    }
+  };
+
+  const handleContractPeriodChange = async (tenantId: number, startDate: string, endDate: string) => {
+    if (!startDate || !endDate) {
+      toast({
+        title: "Missing Dates",
+        description: "Please provide both start and end dates.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setUpdatingContractPeriod(tenantId);
+      const tenant = tenants.find(t => t.id === tenantId);
+      if (!tenant || !tenant.tenantData) return;
+
+      // Get contract from tenant data
+      let contract = null;
+      if (Array.isArray(tenant.tenantData.contracts)) {
+        contract = tenant.tenantData.contracts.length > 0 ? tenant.tenantData.contracts[0] : null;
+      } else if (tenant.tenantData.contracts) {
+        contract = tenant.tenantData.contracts;
+      }
+
+      if (contract && contract.contract_id) {
+        // Update existing contract dates
+        const { error } = await supabase
+          .from('contracts')
+          .update({
+            start_date: startDate,
+            end_date: endDate,
+            updated_at: new Date().toISOString()
+          })
+          .eq('contract_id', contract.contract_id);
+
+        if (error) {
+          throw error;
+        }
+
+        toast({
+          title: "Contract Period Updated",
+          description: "Contract period has been updated successfully.",
+        });
+      } else {
+        // If no contract exists, we need a unit_id to create one
+        toast({
+          title: "No Contract",
+          description: "Cannot update contract period: Tenant has no active contract. Please assign a unit first.",
+          variant: "destructive"
+        });
+        setUpdatingContractPeriod(null);
+        setContractPeriodPopoverOpen(null);
+        return;
+      }
+
+      // Refresh tenant data
+      if (onTenantUpdate) {
+        onTenantUpdate();
+      }
+      
+      setContractPeriodPopoverOpen(null);
+      setContractPeriodForm(null);
+    } catch (error: any) {
+      console.error('Error updating contract period:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update contract period: ${error.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setUpdatingContractPeriod(null);
+    }
+  };
+
+  const handleMonthlyRentChange = async (tenantId: number, newMonthlyRent: string) => {
+    const rentValue = parseFloat(newMonthlyRent);
+    if (isNaN(rentValue) || rentValue < 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid positive number for monthly rent.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setUpdatingMonthlyRent(tenantId);
+      const tenant = tenants.find(t => t.id === tenantId);
+      if (!tenant || !tenant.tenantData) return;
+
+      // Get contract and unit from tenant data
+      let contract = null;
+      if (Array.isArray(tenant.tenantData.contracts)) {
+        contract = tenant.tenantData.contracts.length > 0 ? tenant.tenantData.contracts[0] : null;
+      } else if (tenant.tenantData.contracts) {
+        contract = tenant.tenantData.contracts;
+      }
+
+      if (!contract) {
+        toast({
+          title: "No Contract",
+          description: "Cannot update monthly rent: Tenant has no active contract. Please assign a unit first.",
+          variant: "destructive"
+        });
+        setUpdatingMonthlyRent(null);
+        setMonthlyRentPopoverOpen(null);
+        return;
+      }
+
+      // Get unit_id from contract
+      let unitId = contract.unit_id;
+      if (!unitId && contract.units) {
+        const unit = Array.isArray(contract.units) ? contract.units[0] : contract.units;
+        unitId = unit?.unit_id;
+      }
+
+      if (!unitId) {
+        toast({
+          title: "No Unit",
+          description: "Cannot update monthly rent: No unit assigned to this contract.",
+          variant: "destructive"
+        });
+        setUpdatingMonthlyRent(null);
+        setMonthlyRentPopoverOpen(null);
+        return;
+      }
+
+      // Update the unit's monthly_rent
+      const { error } = await supabase
+        .from('units')
+        .update({
+          monthly_rent: rentValue,
+          updated_at: new Date().toISOString()
+        })
+        .eq('unit_id', unitId);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Monthly Rent Updated",
+        description: `Monthly rent has been updated to ₱${rentValue.toLocaleString()}.`,
+      });
+
+      // Refresh tenant data
+      if (onTenantUpdate) {
+        onTenantUpdate();
+      }
+      
+      setMonthlyRentPopoverOpen(null);
+      setMonthlyRentForm('');
+    } catch (error: any) {
+      console.error('Error updating monthly rent:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update monthly rent: ${error.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setUpdatingMonthlyRent(null);
+    }
   };
 
   const handleEditSubmit = async () => {
@@ -233,7 +553,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Contract Period</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Status</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Valid ID</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">Balance</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Overdue</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>
                 </tr>
               </thead>
@@ -260,28 +580,243 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        <Badge variant="secondary" className="bg-gray-100 text-gray-700">
-                          {tenant.unit}
-                        </Badge>
+                        {updatingUnit === tenant.id ? (
+                          <div className="flex items-center space-x-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                            <span className="text-sm text-gray-500">Updating...</span>
+                          </div>
+                        ) : (
+                          <Select
+                            value={(() => {
+                              // Find the current unit_id for this tenant
+                              const tenantData = tenant.tenantData;
+                              if (!tenantData) return '';
+                              
+                              let contract = null;
+                              if (Array.isArray(tenantData.contracts)) {
+                                contract = tenantData.contracts.length > 0 ? tenantData.contracts[0] : null;
+                              } else if (tenantData.contracts) {
+                                contract = tenantData.contracts;
+                              }
+                              
+                              // Try to get unit_id from contract or from nested units
+                              const unitId = contract?.unit_id || 
+                                            (contract?.units ? (Array.isArray(contract.units) ? contract.units[0]?.unit_id : contract.units.unit_id) : null);
+                              return unitId ? unitId.toString() : '';
+                            })()}
+                            onValueChange={(value) => handleUnitChange(tenant.id, value)}
+                          >
+                            <SelectTrigger className="w-[140px] h-8">
+                              <SelectValue placeholder={tenant.unit !== 'N/A' ? tenant.unit : 'Select Unit'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {units.map((unit) => (
+                                <SelectItem key={unit.unit_id} value={unit.unit_id.toString()}>
+                                  {unit.unit_number} {unit.status === 'available' ? '(Available)' : unit.status === 'occupied' ? '(Occupied)' : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </td>
                       <td className="py-4 px-4 text-sm text-gray-600">{tenant.contact}</td>
-                      <td className="py-4 px-4 font-medium">₱{tenant.monthlyRent.toLocaleString()}</td>
-                      <td className="py-4 px-4 text-sm text-gray-600">
-                        {tenant.contractStart !== 'N/A' && tenant.contractEnd !== 'N/A' 
-                          ? `${tenant.contractStart} to ${tenant.contractEnd}`
-                          : 'No contract'
-                        }
+                      <td className="py-4 px-4">
+                        {updatingMonthlyRent === tenant.id ? (
+                          <div className="flex items-center space-x-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                            <span className="text-sm text-gray-500">Updating...</span>
+                          </div>
+                        ) : (
+                          <Popover 
+                            open={monthlyRentPopoverOpen === tenant.id}
+                            onOpenChange={(open) => {
+                              if (open) {
+                                setMonthlyRentPopoverOpen(tenant.id);
+                                setMonthlyRentForm(tenant.monthlyRent.toString());
+                              } else {
+                                setMonthlyRentPopoverOpen(null);
+                                setMonthlyRentForm('');
+                              }
+                            }}
+                          >
+                            <PopoverTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                className="h-auto p-0 text-sm font-medium hover:text-gray-900 hover:bg-transparent"
+                              >
+                                ₱{tenant.monthlyRent.toLocaleString()}
+                                <Edit className="w-3 h-3 ml-1" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-64 p-4" align="start">
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="font-medium text-sm mb-3">Monthly Rent</h4>
+                                  <div className="space-y-3">
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`rent-${tenant.id}`} className="text-xs">Amount (₱)</Label>
+                                      <Input
+                                        id={`rent-${tenant.id}`}
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder="0.00"
+                                        value={monthlyRentForm}
+                                        onChange={(e) => setMonthlyRentForm(e.target.value)}
+                                        className="h-8"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex justify-end space-x-2 pt-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setMonthlyRentPopoverOpen(null);
+                                      setMonthlyRentForm('');
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="bg-gray-900 text-white hover:bg-gray-800"
+                                    onClick={() => {
+                                      if (monthlyRentForm) {
+                                        handleMonthlyRentChange(tenant.id, monthlyRentForm);
+                                      }
+                                    }}
+                                    disabled={!monthlyRentForm || parseFloat(monthlyRentForm) < 0}
+                                  >
+                                    Save
+                                  </Button>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
                       </td>
                       <td className="py-4 px-4">
-                        <Badge 
-                          className={
-                            tenant.status === 'active' 
-                              ? 'bg-gray-800 text-white' 
-                              : 'bg-gray-100 text-gray-700'
-                          }
-                        >
-                          {tenant.status}
-                        </Badge>
+                        {updatingContractPeriod === tenant.id ? (
+                          <div className="flex items-center space-x-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                            <span className="text-sm text-gray-500">Updating...</span>
+                          </div>
+                        ) : (
+                          <Popover 
+                            open={contractPeriodPopoverOpen === tenant.id}
+                            onOpenChange={(open) => {
+                              if (open) {
+                                setContractPeriodPopoverOpen(tenant.id);
+                                // Initialize form with current dates
+                                const startDate = tenant.contractStart !== 'N/A' ? tenant.contractStart : '';
+                                const endDate = tenant.contractEnd !== 'N/A' ? tenant.contractEnd : '';
+                                setContractPeriodForm({ start_date: startDate, end_date: endDate });
+                              } else {
+                                setContractPeriodPopoverOpen(null);
+                                setContractPeriodForm(null);
+                              }
+                            }}
+                          >
+                            <PopoverTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                className="h-auto p-0 text-sm text-gray-600 hover:text-gray-900 hover:bg-transparent"
+                              >
+                                {tenant.contractStart !== 'N/A' && tenant.contractEnd !== 'N/A' 
+                                  ? `${tenant.contractStart} to ${tenant.contractEnd}`
+                                  : 'No contract'
+                                }
+                                <Calendar className="w-3 h-3 ml-1" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 p-4" align="start">
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="font-medium text-sm mb-3">Contract Period</h4>
+                                  <div className="space-y-3">
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`start-${tenant.id}`} className="text-xs">Start Date</Label>
+                                      <Input
+                                        id={`start-${tenant.id}`}
+                                        type="date"
+                                        value={contractPeriodForm?.start_date || ''}
+                                        onChange={(e) => setContractPeriodForm({
+                                          ...contractPeriodForm!,
+                                          start_date: e.target.value
+                                        })}
+                                        className="h-8"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`end-${tenant.id}`} className="text-xs">End Date</Label>
+                                      <Input
+                                        id={`end-${tenant.id}`}
+                                        type="date"
+                                        value={contractPeriodForm?.end_date || ''}
+                                        onChange={(e) => setContractPeriodForm({
+                                          ...contractPeriodForm!,
+                                          end_date: e.target.value
+                                        })}
+                                        className="h-8"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex justify-end space-x-2 pt-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setContractPeriodPopoverOpen(null);
+                                      setContractPeriodForm(null);
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="bg-gray-900 text-white hover:bg-gray-800"
+                                    onClick={() => {
+                                      if (contractPeriodForm) {
+                                        handleContractPeriodChange(
+                                          tenant.id,
+                                          contractPeriodForm.start_date,
+                                          contractPeriodForm.end_date
+                                        );
+                                      }
+                                    }}
+                                    disabled={!contractPeriodForm?.start_date || !contractPeriodForm?.end_date}
+                                  >
+                                    Save
+                                  </Button>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </td>
+                      <td className="py-4 px-4">
+                        {updatingStatus === tenant.id ? (
+                          <div className="flex items-center space-x-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                            <span className="text-sm text-gray-500">Updating...</span>
+                          </div>
+                        ) : (
+                          <Select
+                            value={tenant.status || 'inactive'}
+                            onValueChange={(value) => handleStatusChange(tenant.id, value)}
+                          >
+                            <SelectTrigger className="w-[120px] h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="inactive">Inactive</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
                       </td>
                       <td className="py-4 px-4">
                         {tenant.validIdUrl ? (
@@ -297,7 +832,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                         )}
                       </td>
                       <td className="py-4 px-4">
-                        <span className={tenant.balance === 0 ? 'text-green-600' : 'text-red-600'}>
+                        <span className={tenant.balance === 0 ? 'text-green-600' : 'text-red-600 font-medium'}>
                           ₱{tenant.balance.toLocaleString()}
                         </span>
                       </td>
@@ -544,7 +1079,9 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <div className="w-5 h-5 flex items-center justify-center">
+                      <div className="w-5 h-5" />
+                      <div>
+                        <p className="text-sm text-gray-600">Status</p>
                         <Badge 
                           className={
                             selectedTenant.status === 'active' 
@@ -554,10 +1091,6 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                         >
                           {selectedTenant.status}
                         </Badge>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Status</p>
-                        <p className="font-medium text-gray-900 capitalize">{selectedTenant.status}</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
@@ -570,9 +1103,9 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                     <div className="flex items-center space-x-3">
                       <div className="w-5 h-5" />
                       <div>
-                        <p className="text-sm text-gray-600">Balance</p>
-                        <p className={`font-medium ${selectedTenant.balance > 0 ? 'text-red-600' : selectedTenant.balance < 0 ? 'text-green-600' : 'text-gray-900'}`}>
-                          ₱{Math.abs(selectedTenant.balance).toLocaleString()} {selectedTenant.balance > 0 ? '(Owed)' : selectedTenant.balance < 0 ? '(Credit)' : ''}
+                        <p className="text-sm text-gray-600">Overdue</p>
+                        <p className={`font-medium ${selectedTenant.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          ₱{selectedTenant.balance.toLocaleString()}
                         </p>
                       </div>
                     </div>

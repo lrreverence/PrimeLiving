@@ -79,6 +79,7 @@ const CaretakerDashboard = () => {
     isLoading,
     fetchPayments,
     fetchDocuments,
+    fetchTenants,
     setPayments
   } = useCaretakerData();
 
@@ -110,6 +111,78 @@ const CaretakerDashboard = () => {
     }
   };
 
+  // Calculate overdue amount for a tenant
+  const calculateOverdue = (tenant: any, payments: any[]) => {
+    // Get contract and unit
+    let contract = null;
+    if (Array.isArray(tenant.contracts)) {
+      contract = tenant.contracts.length > 0 ? tenant.contracts[0] : null;
+    } else if (tenant.contracts) {
+      contract = tenant.contracts;
+    }
+
+    if (!contract?.start_date) return 0;
+
+    let unit = null;
+    if (contract) {
+      if (Array.isArray(contract.units)) {
+        unit = contract.units.length > 0 ? contract.units[0] : null;
+      } else if (contract.units) {
+        unit = contract.units;
+      }
+    }
+
+    const monthlyRent = unit?.monthly_rent ? parseFloat(unit.monthly_rent) : 0;
+    if (monthlyRent === 0) return 0;
+
+    const startDate = new Date(contract.start_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Get confirmed payments for this tenant
+    const tenantPayments = payments.filter(p => {
+      const paymentTenant = p.tenants || null;
+      const paymentTenantId = Array.isArray(paymentTenant) ? paymentTenant[0]?.tenant_id : paymentTenant?.tenant_id;
+      return paymentTenantId === tenant.tenant_id && 
+             (p.status === 'confirmed' || p.status === 'completed' || p.status === 'paid');
+    });
+
+    // Calculate overdue amount
+    let overdueAmount = 0;
+    const dueDay = 15; // Payment is due on the 15th of each month
+
+    // Start from the contract start month
+    let currentMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    
+    // Iterate through each month until today
+    while (currentMonth <= today) {
+      const dueDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dueDay);
+      dueDate.setHours(0, 0, 0, 0);
+
+      // If the due date has passed, check if payment was made
+      if (dueDate < today) {
+        // Check if there's a confirmed payment for this month
+        const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+        const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+        monthEnd.setHours(23, 59, 59, 999);
+
+        const hasPayment = tenantPayments.some(p => {
+          const paymentDate = new Date(p.payment_date);
+          return paymentDate >= monthStart && paymentDate <= monthEnd;
+        });
+
+        if (!hasPayment) {
+          overdueAmount += monthlyRent;
+        }
+      }
+
+      // Move to next month
+      currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+    }
+
+    return overdueAmount;
+  };
+
   // Format tenant data for display
   const formattedTenants = tenants.map((tenant) => {
     let contract = null;
@@ -128,6 +201,9 @@ const CaretakerDashboard = () => {
       }
     }
     
+    // Calculate overdue amount
+    const overdue = calculateOverdue(tenant, payments);
+    
     return {
       id: tenant.tenant_id,
       name: `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() || tenant.email?.split('@')[0] || 'Unknown',
@@ -138,7 +214,7 @@ const CaretakerDashboard = () => {
       contractStart: contract?.start_date ? new Date(contract.start_date).toISOString().split('T')[0] : 'N/A',
       contractEnd: contract?.end_date ? new Date(contract.end_date).toISOString().split('T')[0] : 'N/A',
       status: contract?.status || 'inactive',
-      balance: 0,
+      balance: overdue,
       validIdUrl: tenant.valid_id_url || undefined,
       validIdUploadedAt: tenant.valid_id_uploaded_at || undefined,
       tenantData: tenant
@@ -1233,6 +1309,8 @@ const CaretakerDashboard = () => {
               tenantsLoading={tenantsLoading}
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
+              units={units}
+              onTenantUpdate={fetchTenants}
             />
           </TabsContent>
 
