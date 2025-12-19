@@ -80,6 +80,7 @@ const CaretakerDashboard = () => {
     fetchPayments,
     fetchDocuments,
     fetchTenants,
+    fetchUnits,
     setPayments
   } = useCaretakerData();
 
@@ -1318,6 +1319,8 @@ const CaretakerDashboard = () => {
             <UnitsTab
               units={units}
               unitsLoading={unitsLoading}
+              onUnitUpdate={fetchUnits}
+              landlordId={landlordData?.landlord_id}
             />
           </TabsContent>
 

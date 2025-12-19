@@ -119,8 +119,11 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
       const unitId = parseInt(newUnitId);
 
       if (contract && contract.contract_id) {
+        // Get the old unit_id to update its status
+        const oldUnitId = contract.unit_id;
+        
         // Update existing contract
-        const { error } = await supabase
+        const { error: contractError } = await supabase
           .from('contracts')
           .update({
             unit_id: unitId,
@@ -128,8 +131,33 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
           })
           .eq('contract_id', contract.contract_id);
 
-        if (error) {
-          throw error;
+        if (contractError) {
+          throw contractError;
+        }
+
+        // Update old unit status to available if it's different
+        if (oldUnitId && oldUnitId !== unitId) {
+          await supabase
+            .from('units')
+            .update({
+              status: 'available',
+              updated_at: new Date().toISOString()
+            })
+            .eq('unit_id', oldUnitId);
+        }
+
+        // Update new unit status to occupied
+        const { error: unitError } = await supabase
+          .from('units')
+          .update({
+            status: 'occupied',
+            updated_at: new Date().toISOString()
+          })
+          .eq('unit_id', unitId);
+
+        if (unitError) {
+          console.error('Error updating unit status:', unitError);
+          // Don't throw, just log - the contract update succeeded
         }
 
         toast({
@@ -138,7 +166,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
         });
       } else {
         // Create new contract if none exists
-        const { error } = await supabase
+        const { error: contractError } = await supabase
           .from('contracts')
           .insert({
             tenant_id: tenantId,
@@ -150,8 +178,22 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
             updated_at: new Date().toISOString()
           });
 
-        if (error) {
-          throw error;
+        if (contractError) {
+          throw contractError;
+        }
+
+        // Update unit status to occupied
+        const { error: unitError } = await supabase
+          .from('units')
+          .update({
+            status: 'occupied',
+            updated_at: new Date().toISOString()
+          })
+          .eq('unit_id', unitId);
+
+        if (unitError) {
+          console.error('Error updating unit status:', unitError);
+          // Don't throw, just log - the contract creation succeeded
         }
 
         toast({
@@ -193,6 +235,9 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
       }
 
       if (contract && contract.contract_id) {
+        // Get unit_id from contract
+        const unitId = contract.unit_id;
+        
         // Update existing contract status
         const { error } = await supabase
           .from('contracts')
@@ -204,6 +249,18 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
 
         if (error) {
           throw error;
+        }
+
+        // Update unit status based on contract status
+        if (unitId) {
+          const unitStatus = newStatus === 'active' ? 'occupied' : 'available';
+          await supabase
+            .from('units')
+            .update({
+              status: unitStatus,
+              updated_at: new Date().toISOString()
+            })
+            .eq('unit_id', unitId);
         }
 
         toast({
