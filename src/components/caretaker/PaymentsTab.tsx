@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CreditCard, CheckCircle, AlertCircle, Clock, Calendar, Eye, Download, Check, X, Plus } from 'lucide-react';
 
 interface Payment {
@@ -17,6 +20,14 @@ interface Payment {
   receipt_url?: string;
 }
 
+interface Tenant {
+  id: number;
+  name: string;
+  email: string;
+  unit: string;
+  tenantData?: any;
+}
+
 interface PaymentsTabProps {
   payments: Payment[];
   paymentsLoading: boolean;
@@ -24,6 +35,16 @@ interface PaymentsTabProps {
   onFilterChange: (filter: string) => void;
   onApprovePayment: (paymentId: number) => void;
   onRejectPayment: (paymentId: number) => void;
+  onRecordPayment?: (paymentData: {
+    tenant_id: number;
+    contract_id: number | null;
+    amount: number;
+    payment_date: string;
+    payment_mode: string;
+    status: string;
+    transaction_id?: string;
+  }) => void;
+  tenants?: Tenant[];
   totalPayments: number;
   confirmedCount: number;
   pendingCount: number;
@@ -36,12 +57,23 @@ export const PaymentsTab = ({
   onFilterChange,
   onApprovePayment,
   onRejectPayment,
+  onRecordPayment,
+  tenants = [],
   totalPayments,
   confirmedCount,
   pendingCount
 }: PaymentsTabProps) => {
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [recordModalOpen, setRecordModalOpen] = useState(false);
+  const [recordForm, setRecordForm] = useState({
+    tenant_id: '',
+    amount: '',
+    payment_date: new Date().toISOString().split('T')[0],
+    payment_mode: 'cash',
+    status: 'confirmed',
+    transaction_id: ''
+  });
 
   const handleViewReceipt = (receiptUrl: string) => {
     setSelectedReceipt(receiptUrl);
@@ -51,6 +83,46 @@ export const PaymentsTab = ({
   const handleCloseReceipt = () => {
     setReceiptModalOpen(false);
     setSelectedReceipt(null);
+  };
+
+  const handleRecordPayment = () => {
+    if (!onRecordPayment) return;
+    
+    const selectedTenant = tenants.find(t => t.id.toString() === recordForm.tenant_id);
+    if (!selectedTenant) {
+      return;
+    }
+
+    // Get contract_id from tenant data
+    let contract_id = null;
+    if (selectedTenant.tenantData) {
+      const contracts = selectedTenant.tenantData.contracts;
+      if (Array.isArray(contracts) && contracts.length > 0) {
+        contract_id = contracts[0].contract_id;
+      } else if (contracts && contracts.contract_id) {
+        contract_id = contracts.contract_id;
+      }
+    }
+
+    onRecordPayment({
+      tenant_id: parseInt(recordForm.tenant_id),
+      contract_id: contract_id,
+      amount: parseFloat(recordForm.amount),
+      payment_date: recordForm.payment_date,
+      payment_mode: recordForm.payment_mode,
+      status: recordForm.status,
+      transaction_id: recordForm.transaction_id || undefined
+    });
+
+    setRecordModalOpen(false);
+    setRecordForm({
+      tenant_id: '',
+      amount: '',
+      payment_date: new Date().toISOString().split('T')[0],
+      payment_mode: 'cash',
+      status: 'confirmed',
+      transaction_id: ''
+    });
   };
 
   const isImage = (url: string) => {
@@ -81,7 +153,10 @@ export const PaymentsTab = ({
           <h2 className="text-3xl font-bold text-gray-900">Payment Tracking</h2>
           <p className="text-gray-600 mt-1">Record and monitor rent payments from tenants</p>
         </div>
-        <Button className="bg-gray-900 text-white hover:bg-gray-800 flex items-center space-x-2">
+        <Button 
+          className="bg-gray-900 text-white hover:bg-gray-800 flex items-center space-x-2"
+          onClick={() => setRecordModalOpen(true)}
+        >
           <Plus className="w-4 h-4" />
           <span>Record Payment</span>
         </Button>
@@ -375,6 +450,131 @@ export const PaymentsTab = ({
                 )}
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record Payment Modal */}
+      <Dialog open={recordModalOpen} onOpenChange={setRecordModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Record Payment</DialogTitle>
+            <DialogDescription>
+              Manually record a payment from a tenant
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="tenant">Tenant *</Label>
+              <Select
+                value={recordForm.tenant_id}
+                onValueChange={(value) => setRecordForm({ ...recordForm, tenant_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a tenant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tenants.map((tenant) => (
+                    <SelectItem key={tenant.id} value={tenant.id.toString()}>
+                      {tenant.name} {tenant.unit !== 'N/A' && `(${tenant.unit})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount (₱) *</Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="0.00"
+                value={recordForm.amount}
+                onChange={(e) => setRecordForm({ ...recordForm, amount: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="payment_date">Payment Date *</Label>
+              <Input
+                id="payment_date"
+                type="date"
+                value={recordForm.payment_date}
+                onChange={(e) => setRecordForm({ ...recordForm, payment_date: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="payment_mode">Payment Method *</Label>
+                <Select
+                  value={recordForm.payment_mode}
+                  onValueChange={(value) => setRecordForm({ ...recordForm, payment_mode: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="gcash">GCash</SelectItem>
+                    <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="check">Check</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="status">Status *</Label>
+                <Select
+                  value={recordForm.status}
+                  onValueChange={(value) => setRecordForm({ ...recordForm, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="transaction_id">Transaction ID (Optional)</Label>
+              <Input
+                id="transaction_id"
+                type="text"
+                placeholder="Enter transaction ID or reference number"
+                value={recordForm.transaction_id}
+                onChange={(e) => setRecordForm({ ...recordForm, transaction_id: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRecordModalOpen(false);
+                setRecordForm({
+                  tenant_id: '',
+                  amount: '',
+                  payment_date: new Date().toISOString().split('T')[0],
+                  payment_mode: 'cash',
+                  status: 'confirmed',
+                  transaction_id: ''
+                });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRecordPayment}
+              disabled={!recordForm.tenant_id || !recordForm.amount || !recordForm.payment_date}
+              className="bg-gray-900 text-white hover:bg-gray-800"
+            >
+              Record Payment
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

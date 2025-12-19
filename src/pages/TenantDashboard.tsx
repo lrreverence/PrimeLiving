@@ -585,24 +585,36 @@ const TenantDashboard = () => {
 
   // Calculate next payment due date
   const calculateNextPaymentDue = () => {
-    if (!contractData?.start_date) return null;
+    // Payment is due on the 15th of each month (as displayed in the UI)
+    const dueDay = 15;
     
-    const startDate = new Date(contractData.start_date);
-    const dueDay = startDate.getDate(); // Day of month when payment is due
+    // Get today's date
     const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
+    const todayYear = today.getFullYear();
+    const todayMonth = today.getMonth();
+    const todayDay = today.getDate();
     
-    // Calculate next due date
-    let nextDueDate = new Date(currentYear, currentMonth, dueDay);
+    // Create normalized today for comparison (start of day)
+    const todayNormalized = new Date(todayYear, todayMonth, todayDay);
     
-    // If the due date has passed this month, move to next month
-    if (nextDueDate < today) {
-      nextDueDate = new Date(currentYear, currentMonth + 1, dueDay);
+    // Calculate this month's due date
+    let nextDueDate = new Date(todayYear, todayMonth, dueDay);
+    
+    // If the due date has passed this month (or is today), move to next month
+    if (nextDueDate < todayNormalized) {
+      // Move to next month, handle year rollover
+      let nextMonth = todayMonth + 1;
+      let nextYear = todayYear;
+      if (nextMonth > 11) {
+        nextMonth = 0;
+        nextYear = todayYear + 1;
+      }
+      nextDueDate = new Date(nextYear, nextMonth, dueDay);
     }
     
     // Calculate days until due date
-    const daysUntilDue = Math.ceil((nextDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const timeDiff = nextDueDate.getTime() - todayNormalized.getTime();
+    const daysUntilDue = Math.round(timeDiff / (1000 * 60 * 60 * 24));
     
     return {
       date: nextDueDate,
@@ -636,6 +648,39 @@ const TenantDashboard = () => {
     
     // Balance = Expected - Paid (positive means owed, negative means overpaid)
     return expectedTotal - confirmedPayments;
+  };
+
+  // Calculate contract progress
+  const calculateContractProgress = () => {
+    if (!contractData?.start_date || !contractData?.end_date) return 0;
+    
+    // Normalize dates to start of day to avoid time component issues
+    const startDate = new Date(contractData.start_date);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(contractData.end_date);
+    endDate.setHours(0, 0, 0, 0);
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // If contract hasn't started yet, return 0
+    if (today < startDate) return 0;
+    
+    // If contract has ended, return 100
+    if (today >= endDate) return 100;
+    
+    // Calculate total contract duration in days
+    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Calculate elapsed days from start to today
+    const elapsedDays = Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Calculate progress percentage
+    const progress = (elapsedDays / totalDays) * 100;
+    
+    // Ensure it's between 0 and 100
+    return Math.max(0, Math.min(progress, 100));
   };
 
   // Filter payments based on year and status
@@ -1415,10 +1460,12 @@ const TenantDashboard = () => {
                 <div className="flex items-center space-x-4">
                   <div className="text-right">
                     <p className="text-sm text-gray-600">Contract Progress</p>
-                    <p className="text-2xl font-bold text-gray-900">163%</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {Math.round(calculateContractProgress())}%
+                    </p>
                   </div>
                   <div className="w-32">
-                    <Progress value={163} className="h-2" />
+                    <Progress value={calculateContractProgress()} className="h-2" />
                   </div>
                 </div>
               </div>
@@ -1532,7 +1579,11 @@ const TenantDashboard = () => {
                     <div className="grid grid-cols-1 gap-4">
                       <div className="flex justify-between">
                         <span className="text-gray-600">Contract Period:</span>
-                        <span className="font-medium">2025-01-15 to 2026-01-14</span>
+                        <span className="font-medium">
+                          {contractData?.start_date && contractData?.end_date
+                            ? `${new Date(contractData.start_date).toLocaleDateString()} to ${new Date(contractData.end_date).toLocaleDateString()}`
+                            : 'N/A'}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Monthly Rent:</span>
@@ -2036,7 +2087,16 @@ const TenantDashboard = () => {
                           <p className="text-sm text-gray-600 mb-3">Complete rental agreement with terms, conditions, and lease details</p>
                           <div className="flex items-center justify-between">
                             <Badge variant="secondary" className="bg-gray-100 text-gray-700">PDF</Badge>
-                            <Button size="sm" className="flex items-center space-x-2">
+                            <Button 
+                              size="sm" 
+                              className="flex items-center space-x-2"
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = '/documents/rental-contract.pdf';
+                                link.download = 'rental-contract.pdf';
+                                link.click();
+                              }}
+                            >
                               <Download className="w-4 h-4" />
                               <span>Download Contract</span>
                             </Button>
@@ -2058,7 +2118,16 @@ const TenantDashboard = () => {
                           <p className="text-sm text-gray-600 mb-3">Building rules, regulations, and community guidelines</p>
                           <div className="flex items-center justify-between">
                             <Badge variant="secondary" className="bg-gray-100 text-gray-700">PDF</Badge>
-                            <Button size="sm" className="flex items-center space-x-2">
+                            <Button 
+                              size="sm" 
+                              className="flex items-center space-x-2"
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = '/documents/property-rules.pdf';
+                                link.download = 'property-rules.pdf';
+                                link.click();
+                              }}
+                            >
                               <Download className="w-4 h-4" />
                               <span>Download Rules</span>
                             </Button>
@@ -2080,7 +2149,16 @@ const TenantDashboard = () => {
                           <p className="text-sm text-gray-600 mb-3">Property condition report and inventory checklist</p>
                           <div className="flex items-center justify-between">
                             <Badge variant="secondary" className="bg-gray-100 text-gray-700">PDF</Badge>
-                            <Button size="sm" className="flex items-center space-x-2">
+                            <Button 
+                              size="sm" 
+                              className="flex items-center space-x-2"
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = '/documents/move-in-checklist.pdf';
+                                link.download = 'move-in-checklist.pdf';
+                                link.click();
+                              }}
+                            >
                               <Download className="w-4 h-4" />
                               <span>Download Checklist</span>
                             </Button>
@@ -2102,7 +2180,16 @@ const TenantDashboard = () => {
                           <p className="text-sm text-gray-600 mb-3">Important contact numbers for emergencies and maintenance in the Philippines</p>
                           <div className="flex items-center justify-between">
                             <Badge variant="secondary" className="bg-gray-100 text-gray-700">PDF</Badge>
-                            <Button size="sm" className="flex items-center space-x-2">
+                            <Button 
+                              size="sm" 
+                              className="flex items-center space-x-2"
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = '/documents/philippine-emergency-contacts.pdf';
+                                link.download = 'philippine-emergency-contacts.pdf';
+                                link.click();
+                              }}
+                            >
                               <Download className="w-4 h-4" />
                               <span>Download Contacts</span>
                             </Button>
@@ -2144,18 +2231,6 @@ const TenantDashboard = () => {
                           </div>
                         </div>
                         <Badge className="bg-gray-800 text-white">Enabled</Badge>
-                      </div>
-
-                      {/* Auto-pay Reminders */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Bell className="w-5 h-5 text-gray-400" />
-                          <div>
-                            <p className="font-medium text-gray-900">Auto-pay Reminders</p>
-                            <p className="text-sm text-gray-600">Automatic reminders for rent due dates</p>
-                          </div>
-                        </div>
-                        <Badge variant="secondary" className="bg-gray-100 text-gray-700">Disabled</Badge>
                       </div>
 
                       {/* Maintenance Updates */}
@@ -3015,7 +3090,7 @@ const TenantDashboard = () => {
                       </div>
                       <div>
                         <h4 className="font-semibold text-gray-900">Fire Department</h4>
-                        <p className="text-lg font-bold text-green-600">117</p>
+                        <p className="text-lg font-bold text-green-600">911</p>
                         <p className="text-sm text-gray-600">Fire emergencies and rescue operations</p>
                       </div>
                     </div>
@@ -3026,7 +3101,7 @@ const TenantDashboard = () => {
                       </div>
                       <div>
                         <h4 className="font-semibold text-gray-900">Police</h4>
-                        <p className="text-lg font-bold text-purple-600">117</p>
+                        <p className="text-lg font-bold text-purple-600">911</p>
                         <p className="text-sm text-gray-600">Crime reporting and police assistance</p>
                       </div>
                     </div>
@@ -3037,7 +3112,7 @@ const TenantDashboard = () => {
                       </div>
                       <div>
                         <h4 className="font-semibold text-gray-900">Medical Emergency</h4>
-                        <p className="text-lg font-bold text-orange-600">117</p>
+                        <p className="text-lg font-bold text-orange-600">911</p>
                         <p className="text-sm text-gray-600">Ambulance and medical emergencies</p>
                       </div>
                     </div>

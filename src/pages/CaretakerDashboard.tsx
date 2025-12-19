@@ -227,6 +227,57 @@ const CaretakerDashboard = () => {
   };
 
   // Handle payment rejection
+  // Handle recording a new payment
+  const handleRecordPayment = async (paymentData: {
+    tenant_id: number;
+    contract_id: number | null;
+    amount: number;
+    payment_date: string;
+    payment_mode: string;
+    status: string;
+    transaction_id?: string;
+  }) => {
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .insert({
+          tenant_id: paymentData.tenant_id,
+          contract_id: paymentData.contract_id,
+          amount: paymentData.amount,
+          payment_date: paymentData.payment_date,
+          payment_mode: paymentData.payment_mode,
+          status: paymentData.status,
+          transaction_id: paymentData.transaction_id || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select();
+
+      if (error) {
+        console.error('Error recording payment:', error);
+        toast({
+          title: "Error",
+          description: `Failed to record payment: ${error.message}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "Payment Recorded",
+        description: "Payment has been recorded successfully.",
+      });
+      await fetchPayments();
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to record payment. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleRejectPayment = async (paymentId: number) => {
     try {
       console.log('Rejecting payment:', paymentId);
@@ -883,26 +934,117 @@ const CaretakerDashboard = () => {
     }
   ];
 
+  // Generate report function
+  const generateReport = () => {
+    try {
+      // Create CSV content
+      const csvRows: string[] = [];
+      
+      // Add header
+      csvRows.push('Report Generated: ' + new Date().toLocaleString());
+      csvRows.push('');
+      
+      // Tenants section
+      csvRows.push('TENANTS');
+      csvRows.push('Name,Email,Contact Number,Unit,Branch,Move-in Date');
+      tenants.forEach((tenant: any) => {
+        const unit = Array.isArray(tenant.contracts?.[0]?.units) 
+          ? tenant.contracts[0].units[0] 
+          : tenant.contracts?.[0]?.units;
+        const name = `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim();
+        csvRows.push([
+          `"${name}"`,
+          tenant.email || '',
+          tenant.contact_number || '',
+          unit?.unit_number || 'N/A',
+          tenant.branch || 'N/A',
+          tenant.move_in_date || 'N/A'
+        ].join(','));
+      });
+      csvRows.push('');
+      
+      // Payments section
+      csvRows.push('PAYMENTS');
+      csvRows.push('Date,Tenant,Amount,Status,Payment Method,Transaction ID');
+      payments.forEach((payment: any) => {
+        const tenant = Array.isArray(payment.tenants) ? payment.tenants[0] : payment.tenants;
+        const tenantName = tenant 
+          ? `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() 
+          : 'Unknown';
+        csvRows.push([
+          payment.payment_date || 'N/A',
+          `"${tenantName}"`,
+          payment.amount || '0',
+          payment.status || 'pending',
+          payment.payment_mode || 'N/A',
+          payment.transaction_id || 'N/A'
+        ].join(','));
+      });
+      
+      // Create and download CSV
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `caretaker-report-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Report Generated",
+        description: "Report has been downloaded successfully.",
+      });
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate report. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const quickActions = [
     {
       title: 'Add Tenant',
       icon: <Plus className="w-5 h-5" />,
-      onClick: () => console.log('Add Tenant')
+      onClick: () => {
+        setActiveTab('tenants');
+        toast({
+          title: "Navigate to Tenants",
+          description: "Use the 'Add Tenant' button in the Tenants tab to add a new tenant.",
+        });
+      }
     },
     {
       title: 'Record Payment',
       icon: <CreditCard className="w-5 h-5" />,
-      onClick: () => console.log('Record Payment')
+      onClick: () => {
+        setActiveTab('payments');
+        toast({
+          title: "Navigate to Payments",
+          description: "Use the 'Record Payment' button in the Payments tab to record a new payment.",
+        });
+      }
     },
     {
       title: 'Generate Report',
       icon: <Download className="w-5 h-5" />,
-      onClick: () => console.log('Generate Report')
+      onClick: generateReport
     },
     {
       title: 'Send Notice',
       icon: <Send className="w-5 h-5" />,
-      onClick: () => console.log('Send Notice')
+      onClick: () => {
+        setActiveTab('notifications');
+        toast({
+          title: "Navigate to Notifications",
+          description: "Compose and send notices to tenants from the Notifications tab.",
+        });
+      }
     }
   ];
 
@@ -1109,6 +1251,8 @@ const CaretakerDashboard = () => {
               onFilterChange={setPaymentFilter}
               onApprovePayment={handleApprovePayment}
               onRejectPayment={handleRejectPayment}
+              onRecordPayment={handleRecordPayment}
+              tenants={formattedTenants}
               totalPayments={totalPayments}
               confirmedCount={confirmedCount}
               pendingCount={pendingCount}
