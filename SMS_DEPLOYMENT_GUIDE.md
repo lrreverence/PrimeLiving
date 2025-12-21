@@ -51,9 +51,9 @@ You need to set two environment variables in Supabase:
 
 ## Step 3: Test the Integration
 
-### Test via Caretaker Dashboard:
+### Test via Apartment Manager Dashboard:
 
-1. Log in to your Caretaker Dashboard
+1. Log in to your Apartment Manager Dashboard
 2. Navigate to the **Notifications** tab
 3. Compose a notification
 4. Select **SMS Only** or **SMS + Email** as delivery method

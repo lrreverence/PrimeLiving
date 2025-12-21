@@ -84,8 +84,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const redirectUrl = `${window.location.origin}/`;
       
-      // Map caretaker role to landlord for database storage
-      const dbRole = role === 'caretaker' ? 'landlord' : role;
+      // Map apartment_manager role to landlord for database storage
+      const dbRole = role === 'apartment_manager' ? 'landlord' : role;
       
       const { data, error } = await supabase.auth.signUp({
         email,

@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
-export const useCaretakerData = () => {
+export const useApartmentManagerData = () => {
   const [landlordData, setLandlordData] = useState<any>(null);
   const [tenants, setTenants] = useState<any[]>([]);
   const [tenantsLoading, setTenantsLoading] = useState(false);

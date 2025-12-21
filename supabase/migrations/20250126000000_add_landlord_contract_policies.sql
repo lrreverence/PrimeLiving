@@ -1,12 +1,12 @@
--- Add RLS policies for landlords/caretakers to manage contracts
--- This allows caretakers to update contracts (unit assignments, dates, status) for tenants in their branch
+-- Add RLS policies for landlords/apartment managers to manage contracts
+-- This allows apartment managers to update contracts (unit assignments, dates, status) for tenants in their branch
 
 -- Drop existing policies if they exist
 DROP POLICY IF EXISTS "Landlords can view contracts from same branch" ON public.contracts;
 DROP POLICY IF EXISTS "Landlords can update contracts from same branch" ON public.contracts;
 DROP POLICY IF EXISTS "Landlords can insert contracts for same branch" ON public.contracts;
 
--- Allow landlords/caretakers to view contracts for tenants in their branch
+-- Allow landlords/apartment managers to view contracts for tenants in their branch
 CREATE POLICY "Landlords can view contracts from same branch" 
 ON public.contracts FOR SELECT 
 TO authenticated 
@@ -19,7 +19,7 @@ USING (
   )
 );
 
--- Allow landlords/caretakers to update contracts for tenants in their branch
+-- Allow landlords/apartment managers to update contracts for tenants in their branch
 CREATE POLICY "Landlords can update contracts from same branch" 
 ON public.contracts FOR UPDATE 
 TO authenticated 
@@ -40,7 +40,7 @@ WITH CHECK (
   )
 );
 
--- Allow landlords/caretakers to insert contracts for tenants in their branch
+-- Allow landlords/apartment managers to insert contracts for tenants in their branch
 CREATE POLICY "Landlords can insert contracts for same branch" 
 ON public.contracts FOR INSERT 
 TO authenticated 

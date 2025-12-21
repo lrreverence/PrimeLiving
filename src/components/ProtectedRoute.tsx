@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'tenant' | 'caretaker' | 'landlord';
+  requiredRole?: 'tenant' | 'apartment_manager' | 'landlord';
   redirectTo?: string;
 }
 
@@ -25,19 +25,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       const hasCorrectRole = 
         userRole === requiredRole || 
         uiRole === requiredRole ||
-        (requiredRole === 'caretaker' && userRole === 'landlord') ||
-        (requiredRole === 'landlord' && uiRole === 'caretaker');
+        (requiredRole === 'apartment_manager' && userRole === 'landlord') ||
+        (requiredRole === 'landlord' && uiRole === 'apartment_manager');
 
       // Only redirect if user has wrong role, don't redirect if no user (let them see login)
       if (!hasCorrectRole) {
         // Redirect to appropriate dashboard based on user's actual role
-        if (uiRole === 'caretaker' || userRole === 'landlord' || userRole === 'caretaker') {
-          navigate('/caretaker-dashboard');
+        if (uiRole === 'apartment_manager' || userRole === 'landlord' || userRole === 'apartment_manager') {
+          navigate('/apartment-manager-dashboard');
         } else if (uiRole === 'tenant' || userRole === 'tenant') {
           navigate('/tenant-dashboard');
         } else {
-          // If no role is set and trying to access caretaker dashboard, redirect to tenant
-          if (requiredRole === 'caretaker') {
+          // If no role is set and trying to access apartment manager dashboard, redirect to tenant
+          if (requiredRole === 'apartment_manager') {
             navigate('/tenant-dashboard');
           }
           // If trying to access tenant dashboard without role, allow it (handled in render)
@@ -71,8 +71,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const hasCorrectRole = 
     userRole === requiredRole || 
     uiRole === requiredRole ||
-    (requiredRole === 'caretaker' && userRole === 'landlord') ||
-    (requiredRole === 'landlord' && uiRole === 'caretaker');
+    (requiredRole === 'apartment_manager' && userRole === 'landlord') ||
+    (requiredRole === 'landlord' && uiRole === 'apartment_manager');
 
   // If user has correct role, allow access
   if (hasCorrectRole) {

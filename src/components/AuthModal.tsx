@@ -25,7 +25,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [loginStep, setLoginStep] = useState<'role' | 'credentials'>('role');
   const [signupStep, setSignupStep] = useState<'role' | 'credentials'>('role');
-  const [selectedRole, setSelectedRole] = useState<'tenant' | 'caretaker' | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'tenant' | 'apartment_manager' | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -47,7 +47,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
   };
 
 
-  const handleRoleSelect = (role: 'tenant' | 'caretaker') => {
+  const handleRoleSelect = (role: 'tenant' | 'apartment_manager') => {
     setSelectedRole(role);
     if (activeTab === 'login') {
       setLoginStep('credentials');
@@ -71,11 +71,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
     setSelectedRole(null);
     
     // Redirect based on role
-    if (selectedRole === 'caretaker') {
-      navigate('/caretaker-dashboard');
+    if (selectedRole === 'apartment_manager') {
+      navigate('/apartment-manager-dashboard');
       toast({
         title: "Welcome to PrimeLiving!",
-        description: "Redirecting to your caretaker dashboard...",
+        description: "Redirecting to your apartment manager dashboard...",
       });
     } else if (selectedRole === 'tenant') {
       navigate('/tenant-dashboard');
@@ -162,7 +162,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
 
                     <Card 
                       className="cursor-pointer hover:shadow-md transition-shadow border-gray-200"
-                      onClick={() => handleRoleSelect('caretaker')}
+                      onClick={() => handleRoleSelect('apartment_manager')}
                     >
                       <CardContent className="p-6">
                         <div className="flex items-center space-x-4">
@@ -170,7 +170,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
                             <Building2 className="w-6 h-6 text-blue-600" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900">Caretaker</h4>
+                            <h4 className="font-semibold text-gray-900">Apartment Manager</h4>
                             <p className="text-sm text-gray-600">Manage tenants, payments, and property maintenance</p>
                           </div>
                         </div>
@@ -191,7 +191,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
                     </Button>
                     <div>
                       <h3 className="font-semibold text-gray-900">
-                        Sign in as {selectedRole === 'tenant' ? 'Tenant' : 'Caretaker'}
+                        Sign in as {selectedRole === 'tenant' ? 'Tenant' : 'Apartment Manager'}
                       </h3>
                       <p className="text-sm text-gray-600">Enter your credentials to continue</p>
                     </div>
@@ -238,7 +238,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
 
                     <Card 
                       className="cursor-pointer hover:shadow-md transition-shadow border-gray-200"
-                      onClick={() => handleRoleSelect('caretaker')}
+                      onClick={() => handleRoleSelect('apartment_manager')}
                     >
                       <CardContent className="p-6">
                         <div className="flex items-center space-x-4">
@@ -246,7 +246,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
                             <Building2 className="w-6 h-6 text-blue-600" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900">Caretaker</h4>
+                            <h4 className="font-semibold text-gray-900">Apartment Manager</h4>
                             <p className="text-sm text-gray-600">Manage tenants, payments, and property maintenance</p>
                           </div>
                         </div>
@@ -267,7 +267,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
                     </Button>
                     <div>
                       <h3 className="font-semibold text-gray-900">
-                        Create {selectedRole === 'tenant' ? 'Tenant' : 'Caretaker'} Account
+                        Create {selectedRole === 'tenant' ? 'Tenant' : 'Apartment Manager'} Account
                       </h3>
                       <p className="text-sm text-gray-600">Fill in your details to get started</p>
                     </div>

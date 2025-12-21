@@ -20,7 +20,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 interface LoginFormProps {
   onSuccess?: () => void;
   onSwitchToSignup?: () => void;
-  selectedRole?: 'tenant' | 'caretaker' | null;
+  selectedRole?: 'tenant' | 'apartment_manager' | null;
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignup, selectedRole }) => {

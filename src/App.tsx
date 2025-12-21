@@ -8,7 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Locations from "./pages/Locations";
 import ContactPage from "./pages/Contact";
-import CaretakerDashboard from "./pages/CaretakerDashboard";
+import ApartmentManagerDashboard from "./pages/ApartmentManagerDashboard";
 import TenantDashboard from "./pages/TenantDashboard";
 import EmailConfirmation from "./pages/EmailConfirmation";
 import NotFound from "./pages/NotFound";
@@ -27,10 +27,10 @@ const App = () => (
                 <Route path="/locations" element={<Locations />} />
                 <Route path="/contact" element={<ContactPage />} />
                 <Route 
-                  path="/caretaker-dashboard" 
+                  path="/apartment-manager-dashboard" 
                   element={
-                    <ProtectedRoute requiredRole="caretaker">
-                      <CaretakerDashboard />
+                    <ProtectedRoute requiredRole="apartment_manager">
+                      <ApartmentManagerDashboard />
                     </ProtectedRoute>
                   } 
                 />

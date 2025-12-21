@@ -181,7 +181,7 @@ CREATE POLICY "Users can view their own contracts" ON public.contracts FOR SELEC
 CREATE POLICY "Users can view their own payments" ON public.payments FOR SELECT TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 CREATE POLICY "Users can create their own payments" ON public.payments FOR INSERT TO authenticated WITH CHECK (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 
--- Allow landlords/caretakers to view payments for tenants in the same branch
+-- Allow landlords/apartment managers to view payments for tenants in the same branch
 CREATE POLICY "Landlords can view payments from same branch" ON public.payments FOR SELECT TO authenticated USING (
   tenant_id IN (
     SELECT tenant_id FROM public.tenants 
@@ -195,7 +195,7 @@ CREATE POLICY "Users can update their own notifications" ON public.notifications
 CREATE POLICY "Users can view their own maintenance requests" ON public.maintenance_requests FOR SELECT TO authenticated USING (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 CREATE POLICY "Users can create maintenance requests" ON public.maintenance_requests FOR INSERT TO authenticated WITH CHECK (tenant_id IN (SELECT tenant_id FROM public.tenants WHERE user_id = auth.uid()));
 
--- Allow landlords/caretakers to view tenants from the same branch
+-- Allow landlords/apartment managers to view tenants from the same branch
 CREATE POLICY "Landlords can view tenants from same branch" ON public.tenants FOR SELECT TO authenticated USING (
   branch IN (
     SELECT branch FROM public.landlords WHERE user_id = auth.uid()

@@ -140,7 +140,7 @@ BEGIN
     );
   END IF;
 
-  -- Create landlord record if role is 'landlord' (includes caretakers)
+  -- Create landlord record if role is 'landlord' (includes apartment managers)
   IF user_role = 'landlord' THEN
     INSERT INTO public.landlords (
       user_id,

@@ -1,12 +1,12 @@
 # 🏢 PrimeLiving - Apartment Management System
 
-A comprehensive apartment management system built with React, TypeScript, and modern web technologies. PrimeLiving provides a complete solution for property managers, caretakers, and tenants to manage rental properties efficiently.
+A comprehensive apartment management system built with React, TypeScript, and modern web technologies. PrimeLiving provides a complete solution for property managers, apartment managers, and tenants to manage rental properties efficiently.
 
 ## 🌟 Features
 
 ### 🏠 **Multi-Role Dashboard System**
 - **Property Manager Dashboard**: Complete property oversight and management
-- **Caretaker Dashboard**: Day-to-day operations and tenant management  
+- **Apartment Manager Dashboard**: Day-to-day operations and tenant management  
 - **Tenant Dashboard**: Self-service portal for tenants
 
 ### 👥 **User Management**
@@ -124,7 +124,7 @@ npm run build
 - Notification system administration
 - Maintenance request oversight
 
-### **Caretaker**
+### **Apartment Manager**
 - Property-specific tenant management
 - Payment recording and confirmation
 - Maintenance request handling
@@ -153,7 +153,7 @@ src/
 │   ├── Index.tsx     # Landing page
 │   ├── Locations.tsx # Property selection
 │   ├── ManagerDashboard.tsx # Manager interface
-│   ├── CaretakerDashboard.tsx # Caretaker interface
+│   ├── ApartmentManagerDashboard.tsx # Apartment Manager interface
 │   └── TenantDashboard.tsx # Tenant interface
 ├── contexts/          # React contexts
 │   └── AuthContext.tsx # Authentication context

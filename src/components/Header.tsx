@@ -28,9 +28,9 @@ const Header = () => {
     const userRole = user.user_metadata?.role;
     const uiRole = user.user_metadata?.uiRole;
     
-    // Check if user is caretaker/admin (landlord or caretaker)
-    if (uiRole === 'caretaker' || userRole === 'landlord' || userRole === 'caretaker') {
-      return '/caretaker-dashboard';
+    // Check if user is apartment manager/admin (landlord or apartment_manager)
+    if (uiRole === 'apartment_manager' || userRole === 'landlord' || userRole === 'apartment_manager') {
+      return '/apartment-manager-dashboard';
     }
     // Default to tenant dashboard
     return '/tenant-dashboard';
@@ -85,7 +85,7 @@ const Header = () => {
               type="button"
               onClick={handleDashboardClick}
               className={`transition-colors cursor-pointer ${
-                location.pathname === '/caretaker-dashboard' || 
+                location.pathname === '/apartment-manager-dashboard' || 
                 location.pathname === '/tenant-dashboard'
                   ? 'text-primary' 
                   : 'text-foreground hover:text-primary'

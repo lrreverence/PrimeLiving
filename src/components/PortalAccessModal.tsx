@@ -60,8 +60,8 @@ const PortalAccessModal: React.FC<PortalAccessModalProps> = ({ open, onOpenChang
 
   const roles: Role[] = [
     {
-      id: 'caretaker',
-      name: 'Caretaker Login',
+      id: 'apartment_manager',
+      name: 'Apartment Manager Login',
       description: 'Manage tenants, payments, contracts, and property maintenance.',
       features: [
         'Tenant Management',
@@ -69,7 +69,7 @@ const PortalAccessModal: React.FC<PortalAccessModalProps> = ({ open, onOpenChang
         'Document Generation',
         'Maintenance Logs',
       ],
-      buttonText: 'Continue as Caretaker',
+      buttonText: 'Continue as Apartment Manager',
       icon: <Building2 className="w-6 h-6 text-blue-600" />,
       buttonVariant: 'default',
     },
@@ -104,8 +104,8 @@ const PortalAccessModal: React.FC<PortalAccessModalProps> = ({ open, onOpenChang
     });
 
     // Redirect based on role
-    if (role.id === 'caretaker') {
-      navigate('/caretaker-dashboard');
+    if (role.id === 'apartment_manager') {
+      navigate('/apartment-manager-dashboard');
     } else if (role.id === 'tenant') {
       // TODO: Implement tenant dashboard
       console.log('Tenant dashboard not implemented yet');

@@ -8,7 +8,7 @@ This document outlines the plan for integrating TextBee SMS API (https://api.tex
 
 ### Existing Implementation
 - ✅ SMS notification function stub exists in `src/lib/notificationService.ts` (`sendSMSNotification`)
-- ✅ CaretakerDashboard already calls `sendSMSNotification` when sending notifications
+- ✅ ApartmentManagerDashboard already calls `sendSMSNotification` when sending notifications
 - ✅ Notification system saves messages to database regardless of delivery method
 - ✅ Email integration is already working via Supabase Edge Function (`supabase/functions/send-email/index.ts`)
 - ✅ TextBee account is configured and already sending messages
@@ -189,7 +189,7 @@ src/
 
 ## Integration Points
 
-### 1. CaretakerDashboard.tsx
+### 1. ApartmentManagerDashboard.tsx
 - Already calls `sendSMSNotification` when delivery method includes SMS
 - No changes needed here initially
 - May need updates for better error display

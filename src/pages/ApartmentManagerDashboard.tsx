@@ -22,17 +22,17 @@ import {
   DollarSign,
   Calendar as CalendarIcon
 } from 'lucide-react';
-import { useCaretakerData } from '@/components/caretaker/useCaretakerData';
-import { OverviewTab } from '@/components/caretaker/OverviewTab';
-import { TenantsTab } from '@/components/caretaker/TenantsTab';
-import { PaymentsTab } from '@/components/caretaker/PaymentsTab';
-import { DocumentsTab } from '@/components/caretaker/DocumentsTab';
-import { NotificationsTab } from '@/components/caretaker/NotificationsTab';
-import { MaintenanceTab } from '@/components/caretaker/MaintenanceTab';
-import { UnitsTab } from '@/components/caretaker/UnitsTab';
+import { useApartmentManagerData } from '@/components/apartment-manager/useApartmentManagerData';
+import { OverviewTab } from '@/components/apartment-manager/OverviewTab';
+import { TenantsTab } from '@/components/apartment-manager/TenantsTab';
+import { PaymentsTab } from '@/components/apartment-manager/PaymentsTab';
+import { DocumentsTab } from '@/components/apartment-manager/DocumentsTab';
+import { NotificationsTab } from '@/components/apartment-manager/NotificationsTab';
+import { MaintenanceTab } from '@/components/apartment-manager/MaintenanceTab';
+import { UnitsTab } from '@/components/apartment-manager/UnitsTab';
 import { sendEmailNotification, sendSMSNotification } from '@/lib/notificationService';
 
-const CaretakerDashboard = () => {
+const ApartmentManagerDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('confirmed');
@@ -83,7 +83,7 @@ const CaretakerDashboard = () => {
     fetchUnits,
     fetchMaintenanceRequests,
     setPayments
-  } = useCaretakerData();
+  } = useApartmentManagerData();
 
   // Helper function to format branch name
   const formatBranchName = (branch: string) => {
@@ -1065,7 +1065,7 @@ const CaretakerDashboard = () => {
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `caretaker-report-${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `apartment-manager-report-${new Date().toISOString().split('T')[0]}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -1260,7 +1260,7 @@ const CaretakerDashboard = () => {
           <div className="flex items-center space-x-3">
             <Building2 className="w-8 h-8 text-blue-600" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Caretaker Dashboard</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Apartment Manager Dashboard</h1>
               <p className="text-gray-600">
                 {formatBranchName(landlordData?.branch || 'sampaloc-manila')}
               </p>
@@ -1414,5 +1414,5 @@ const CaretakerDashboard = () => {
   );
 };
 
-export default CaretakerDashboard;
+export default ApartmentManagerDashboard;
 

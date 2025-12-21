@@ -28,7 +28,7 @@ type SignupFormData = z.infer<typeof signupSchema>;
 interface SignupFormProps {
   onSuccess?: () => void;
   onSwitchToLogin?: () => void;
-  selectedRole?: 'tenant' | 'caretaker' | null;
+  selectedRole?: 'tenant' | 'apartment_manager' | null;
 }
 
 const SignupForm: React.FC<SignupFormProps> = ({ onSuccess, onSwitchToLogin, selectedRole }) => {
