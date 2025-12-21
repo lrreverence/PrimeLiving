@@ -70,20 +70,36 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
     setLoginStep('role');
     setSelectedRole(null);
     
-    // Redirect based on role
-    if (selectedRole === 'apartment_manager') {
+    // Get user's actual role from metadata (not UI selection)
+    const userRole = user?.user_metadata?.role;
+    const uiRole = user?.user_metadata?.uiRole;
+    
+    // Redirect based on actual user role from metadata
+    if (uiRole === 'super_admin' || userRole === 'super_admin') {
+      navigate('/super-admin-dashboard');
+      toast({
+        title: "Welcome to PrimeLiving!",
+        description: "Redirecting to your super admin dashboard...",
+      });
+    } else if (selectedRole === 'apartment_manager' || uiRole === 'apartment_manager' || userRole === 'apartment_manager') {
       navigate('/apartment-manager-dashboard');
       toast({
         title: "Welcome to PrimeLiving!",
         description: "Redirecting to your apartment manager dashboard...",
       });
-    } else if (selectedRole === 'tenant') {
+    } else if (selectedRole === 'tenant' || uiRole === 'tenant' || userRole === 'tenant') {
       navigate('/tenant-dashboard');
       toast({
         title: "Welcome to PrimeLiving!",
         description: "Redirecting to your tenant dashboard...",
       });
     } else {
+      // Fallback: try to redirect based on metadata role
+      if (userRole === 'apartment_manager' || uiRole === 'apartment_manager') {
+        navigate('/apartment-manager-dashboard');
+      } else {
+        navigate('/tenant-dashboard');
+      }
       toast({
         title: "Welcome to PrimeLiving!",
         description: `Welcome back, ${user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}!`,

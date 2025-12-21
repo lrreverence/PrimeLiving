@@ -62,7 +62,7 @@ const ApartmentManagerDashboard = () => {
   const navigate = useNavigate();
 
   const {
-    landlordData,
+    apartmentManagerData,
     tenants,
     tenantsLoading,
     payments,
@@ -512,7 +512,7 @@ const ApartmentManagerDashboard = () => {
           document_type: selectedDocumentType,
           title: `${selectedDocumentType} - ${selectedTenant}`,
           generated_date: new Date().toISOString(),
-          created_by: landlordData?.landlord_id || null
+          created_by: apartmentManagerData?.apartment_manager_id || null
         })
         .select(`
           *,
@@ -750,7 +750,7 @@ const ApartmentManagerDashboard = () => {
 
   // Template management functions
   const fetchTemplates = async () => {
-    if (!landlordData?.landlord_id) return;
+    if (!apartmentManagerData?.apartment_manager_id) return;
 
     try {
       setTemplatesLoading(true);
@@ -804,7 +804,7 @@ const ApartmentManagerDashboard = () => {
           notification_type: dbNotificationType,
           subject: templateForm.subject,
           message: templateForm.message,
-          created_by: landlordData?.landlord_id || null
+          created_by: apartmentManagerData?.apartment_manager_id || null
         });
 
       if (error) {
@@ -979,10 +979,10 @@ const ApartmentManagerDashboard = () => {
 
   // Load templates when notification tab is opened
   useEffect(() => {
-    if (activeTab === 'notifications' && notificationTab === 'templates' && landlordData?.landlord_id) {
+    if (activeTab === 'notifications' && notificationTab === 'templates' && apartmentManagerData?.apartment_manager_id) {
       fetchTemplates();
     }
-  }, [activeTab, notificationTab, landlordData]);
+  }, [activeTab, notificationTab, apartmentManagerData]);
 
   // Overview data
   const overviewMetrics = [
@@ -1262,7 +1262,7 @@ const ApartmentManagerDashboard = () => {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Apartment Manager Dashboard</h1>
               <p className="text-gray-600">
-                {formatBranchName(landlordData?.branch || 'sampaloc-manila')}
+                {formatBranchName(apartmentManagerData?.branch || 'sampaloc-manila')}
               </p>
             </div>
           </div>
@@ -1321,7 +1321,7 @@ const ApartmentManagerDashboard = () => {
               units={units}
               unitsLoading={unitsLoading}
               onUnitUpdate={fetchUnits}
-              landlordId={landlordData?.landlord_id}
+              landlordId={apartmentManagerData?.apartment_manager_id}
             />
           </TabsContent>
 

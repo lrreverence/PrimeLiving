@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 export const useApartmentManagerData = () => {
-  const [landlordData, setLandlordData] = useState<any>(null);
+  const [apartmentManagerData, setApartmentManagerData] = useState<any>(null);
   const [tenants, setTenants] = useState<any[]>([]);
   const [tenantsLoading, setTenantsLoading] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
@@ -26,8 +26,8 @@ export const useApartmentManagerData = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Fetch landlord data from Supabase
-  const fetchLandlordData = async () => {
+  // Fetch apartment manager data from Supabase
+  const fetchApartmentManagerData = async () => {
     if (!user) {
       console.log('No user found');
       return;
@@ -35,24 +35,24 @@ export const useApartmentManagerData = () => {
     
     try {
       setIsLoading(true);
-      console.log('Fetching landlord data for user:', user.id);
+      console.log('Fetching apartment manager data for user:', user.id);
       
       const { data, error } = await supabase
-        .from('landlords' as any)
+        .from('apartment_managers' as any)
         .select('*')
         .eq('user_id', user.id)
         .single();
 
       if (error) {
-        console.error('Error fetching landlord data:', error);
-        setLandlordData(null);
+        console.error('Error fetching apartment manager data:', error);
+        setApartmentManagerData(null);
       } else {
-        console.log('Fetched landlord data:', data);
-        setLandlordData(data);
+        console.log('Fetched apartment manager data:', data);
+        setApartmentManagerData(data);
       }
     } catch (error) {
-      console.error('Error fetching landlord data:', error);
-      setLandlordData(null);
+      console.error('Error fetching apartment manager data:', error);
+      setApartmentManagerData(null);
     } finally {
       setIsLoading(false);
     }
@@ -60,8 +60,8 @@ export const useApartmentManagerData = () => {
 
   // Fetch tenants filtered by branch
   const fetchTenants = async () => {
-    if (!landlordData?.branch) {
-      console.log('No landlord branch found');
+    if (!apartmentManagerData?.branch) {
+      console.log('No apartment manager branch found');
       return;
     }
 
@@ -78,7 +78,7 @@ export const useApartmentManagerData = () => {
             )
           )
         `)
-        .eq('branch', landlordData.branch)
+        .eq('branch', apartmentManagerData.branch)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -105,7 +105,7 @@ export const useApartmentManagerData = () => {
 
   // Fetch payments for tenants in the same branch
   const fetchPayments = async () => {
-    if (!landlordData?.branch) {
+    if (!apartmentManagerData?.branch) {
       console.log('No landlord branch found for payments');
       return;
     }
@@ -167,7 +167,7 @@ export const useApartmentManagerData = () => {
 
   // Fetch documents from database
   const fetchDocuments = async () => {
-    if (!landlordData?.branch) {
+    if (!apartmentManagerData?.branch) {
       console.log('No landlord branch found for documents');
       return;
     }
@@ -215,7 +215,7 @@ export const useApartmentManagerData = () => {
 
   // Fetch units and calculate statistics
   const fetchUnits = async () => {
-    if (!landlordData?.branch) {
+    if (!apartmentManagerData?.branch) {
       console.log('No landlord branch found for units');
       return;
     }
@@ -242,9 +242,9 @@ export const useApartmentManagerData = () => {
           )
         `);
 
-      // If landlord_id exists, filter by it; otherwise get all units
-      if (landlordData.landlord_id) {
-        query = query.eq('landlord_id', landlordData.landlord_id);
+      // If apartment_manager_id exists, filter by it; otherwise get all units
+      if (apartmentManagerData.apartment_manager_id) {
+        query = query.eq('apartment_manager_id', apartmentManagerData.apartment_manager_id);
       }
 
       const { data, error } = await query;
@@ -279,7 +279,7 @@ export const useApartmentManagerData = () => {
             const tenant = contract?.tenants;
             if (tenant) {
               const tenantBranch = Array.isArray(tenant) ? tenant[0]?.branch : tenant?.branch;
-              return tenantBranch === landlordData.branch;
+              return tenantBranch === apartmentManagerData.branch;
             }
             // Fallback: check if tenant_id is in our tenant list
             return contract?.tenant_id && tenantIds.includes(contract.tenant_id);
@@ -306,7 +306,7 @@ export const useApartmentManagerData = () => {
                 const tenant = contract?.tenants;
                 if (tenant) {
                   const tenantBranch = Array.isArray(tenant) ? tenant[0]?.branch : tenant?.branch;
-                  return tenantBranch === landlordData.branch;
+                  return tenantBranch === apartmentManagerData.branch;
                 }
                 return contract?.tenant_id && tenantIds.includes(contract.tenant_id);
               }
@@ -340,16 +340,16 @@ export const useApartmentManagerData = () => {
   // Load landlord data when component mounts
   useEffect(() => {
     if (user) {
-      fetchLandlordData();
+      fetchApartmentManagerData();
     }
   }, [user]);
 
   // Load tenants when landlord data is available
   useEffect(() => {
-    if (landlordData?.branch) {
+    if (apartmentManagerData?.branch) {
       fetchTenants();
     }
-  }, [landlordData]);
+  }, [apartmentManagerData]);
 
   // Load payments when tenants are available
   useEffect(() => {
@@ -360,10 +360,10 @@ export const useApartmentManagerData = () => {
 
   // Load documents when landlord data is available
   useEffect(() => {
-    if (landlordData?.branch) {
+    if (apartmentManagerData?.branch) {
       fetchDocuments();
     }
-  }, [landlordData]);
+  }, [apartmentManagerData]);
 
   // Helper function to format time ago
   const formatTimeAgo = (date: Date): string => {
@@ -387,7 +387,7 @@ export const useApartmentManagerData = () => {
 
   // Fetch maintenance requests filtered by branch
   const fetchMaintenanceRequests = useCallback(async () => {
-    const branch = landlordData?.branch;
+    const branch = apartmentManagerData?.branch;
     if (!branch) {
       return;
     }
@@ -441,25 +441,25 @@ export const useApartmentManagerData = () => {
     } finally {
       setMaintenanceRequestsLoading(false);
     }
-  }, [landlordData, toast]);
+  }, [apartmentManagerData, toast]);
 
   // Load units when landlord data and tenants are available
   useEffect(() => {
-    if (landlordData?.branch && tenants.length >= 0) {
+    if (apartmentManagerData?.branch && tenants.length >= 0) {
       fetchUnits();
     }
-  }, [landlordData, tenants]);
+  }, [apartmentManagerData, tenants]);
 
   // Load maintenance requests when landlord data is available
   useEffect(() => {
-    if (landlordData?.branch) {
+    if (apartmentManagerData?.branch) {
       fetchMaintenanceRequests();
     }
-  }, [landlordData, fetchMaintenanceRequests]);
+  }, [apartmentManagerData, fetchMaintenanceRequests]);
 
   // Fetch recent activity (payments, maintenance requests, expiring contracts)
   const fetchRecentActivity = async () => {
-    if (!landlordData?.branch || tenants.length === 0) {
+    if (!apartmentManagerData?.branch || tenants.length === 0) {
       return;
     }
 
@@ -620,13 +620,13 @@ export const useApartmentManagerData = () => {
 
   // Load recent activity when tenants and payments are available
   useEffect(() => {
-    if (tenants.length > 0 && landlordData?.branch) {
+    if (tenants.length > 0 && apartmentManagerData?.branch) {
       fetchRecentActivity();
     }
-  }, [tenants, payments, landlordData]);
+  }, [tenants, payments, apartmentManagerData]);
 
   return {
-    landlordData,
+    apartmentManagerData,
     tenants,
     tenantsLoading,
     payments,

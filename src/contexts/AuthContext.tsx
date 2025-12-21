@@ -84,8 +84,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const redirectUrl = `${window.location.origin}/`;
       
-      // Map apartment_manager role to landlord for database storage
-      const dbRole = role === 'apartment_manager' ? 'landlord' : role;
+      // Map apartment_manager role - keep as apartment_manager for database storage
+      const dbRole = role === 'apartment_manager' ? 'apartment_manager' : role;
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           data: {
             name,
             phone,
-            role: dbRole, // Store as 'landlord' in database
+            role: dbRole, // Store as 'apartment_manager' in database
             uiRole: role, // Keep original UI role for reference
             branch,
             validIdUrl, // Store valid ID URL in user metadata temporarily

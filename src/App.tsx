@@ -10,6 +10,7 @@ import Locations from "./pages/Locations";
 import ContactPage from "./pages/Contact";
 import ApartmentManagerDashboard from "./pages/ApartmentManagerDashboard";
 import TenantDashboard from "./pages/TenantDashboard";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import EmailConfirmation from "./pages/EmailConfirmation";
 import NotFound from "./pages/NotFound";
 
@@ -39,6 +40,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredRole="tenant">
                       <TenantDashboard />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/super-admin-dashboard" 
+                  element={
+                    <ProtectedRoute requiredRole="super_admin">
+                      <SuperAdminDashboard />
                     </ProtectedRoute>
                   } 
                 />

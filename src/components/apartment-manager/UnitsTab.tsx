@@ -25,10 +25,10 @@ interface UnitsTabProps {
   units: Unit[];
   unitsLoading: boolean;
   onUnitUpdate?: () => void;
-  landlordId?: number;
+  apartmentManagerId?: number;
 }
 
-export const UnitsTab = ({ units, unitsLoading, onUnitUpdate, landlordId }: UnitsTabProps) => {
+export const UnitsTab = ({ units, unitsLoading, onUnitUpdate, apartmentManagerId }: UnitsTabProps) => {
   const { toast } = useToast();
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -123,7 +123,7 @@ export const UnitsTab = ({ units, unitsLoading, onUnitUpdate, landlordId }: Unit
           unit_type: unitForm.unit_type,
           monthly_rent: parseFloat(unitForm.monthly_rent),
           status: unitForm.status,
-          landlord_id: landlordId || null,
+          apartment_manager_id: apartmentManagerId || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });

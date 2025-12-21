@@ -28,8 +28,12 @@ const Header = () => {
     const userRole = user.user_metadata?.role;
     const uiRole = user.user_metadata?.uiRole;
     
-    // Check if user is apartment manager/admin (landlord or apartment_manager)
-    if (uiRole === 'apartment_manager' || userRole === 'landlord' || userRole === 'apartment_manager') {
+    // Check if user is super admin
+    if (uiRole === 'super_admin' || userRole === 'super_admin') {
+      return '/super-admin-dashboard';
+    }
+    // Check if user is apartment manager
+    if (uiRole === 'apartment_manager' || userRole === 'apartment_manager') {
       return '/apartment-manager-dashboard';
     }
     // Default to tenant dashboard
@@ -86,7 +90,8 @@ const Header = () => {
               onClick={handleDashboardClick}
               className={`transition-colors cursor-pointer ${
                 location.pathname === '/apartment-manager-dashboard' || 
-                location.pathname === '/tenant-dashboard'
+                location.pathname === '/tenant-dashboard' ||
+                location.pathname === '/super-admin-dashboard'
                   ? 'text-primary' 
                   : 'text-foreground hover:text-primary'
               }`}

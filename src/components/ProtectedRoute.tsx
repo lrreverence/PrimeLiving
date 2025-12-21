@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'tenant' | 'apartment_manager' | 'landlord';
+  requiredRole?: 'tenant' | 'apartment_manager' | 'super_admin';
   redirectTo?: string;
 }
 
@@ -21,17 +21,25 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       const userRole = user.user_metadata?.role;
       const uiRole = user.user_metadata?.uiRole;
       
+      // Super admins should always go to their own dashboard
+      if (uiRole === 'super_admin' || userRole === 'super_admin') {
+        if (requiredRole !== 'super_admin') {
+          navigate('/super-admin-dashboard');
+          return;
+        }
+      }
+      
       // Check both database role and UI role
       const hasCorrectRole = 
         userRole === requiredRole || 
-        uiRole === requiredRole ||
-        (requiredRole === 'apartment_manager' && userRole === 'landlord') ||
-        (requiredRole === 'landlord' && uiRole === 'apartment_manager');
+        uiRole === requiredRole;
 
       // Only redirect if user has wrong role, don't redirect if no user (let them see login)
       if (!hasCorrectRole) {
         // Redirect to appropriate dashboard based on user's actual role
-        if (uiRole === 'apartment_manager' || userRole === 'landlord' || userRole === 'apartment_manager') {
+        if (uiRole === 'super_admin' || userRole === 'super_admin') {
+          navigate('/super-admin-dashboard');
+        } else if (uiRole === 'apartment_manager' || userRole === 'apartment_manager') {
           navigate('/apartment-manager-dashboard');
         } else if (uiRole === 'tenant' || userRole === 'tenant') {
           navigate('/tenant-dashboard');
@@ -68,11 +76,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const userRole = user.user_metadata?.role;
   const uiRole = user.user_metadata?.uiRole;
   
+  // Super admins should always go to their own dashboard
+  if (uiRole === 'super_admin' || userRole === 'super_admin') {
+    if (requiredRole !== 'super_admin') {
+      // Redirect to super admin dashboard
+      navigate('/super-admin-dashboard');
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        </div>
+      );
+    }
+  }
+  
   const hasCorrectRole = 
     userRole === requiredRole || 
-    uiRole === requiredRole ||
-    (requiredRole === 'apartment_manager' && userRole === 'landlord') ||
-    (requiredRole === 'landlord' && uiRole === 'apartment_manager');
+    uiRole === requiredRole;
 
   // If user has correct role, allow access
   if (hasCorrectRole) {
