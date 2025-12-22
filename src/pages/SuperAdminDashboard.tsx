@@ -91,6 +91,16 @@ const SuperAdminDashboard = () => {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editType, setEditType] = useState<'user' | 'tenant' | 'apartment_manager' | 'unit' | null>(null);
 
+  // Add apartment manager dialog states
+  const [addApartmentManagerDialogOpen, setAddApartmentManagerDialogOpen] = useState(false);
+  const [newApartmentManager, setNewApartmentManager] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    contact_number: '',
+    branch: ''
+  });
+
   const { logout, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -398,6 +408,79 @@ const SuperAdminDashboard = () => {
       toast({
         title: "Error",
         description: `Failed to delete ${type}: ${error.message}`,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleAddApartmentManager = async () => {
+    // Validate required fields
+    if (!newApartmentManager.first_name || !newApartmentManager.last_name || 
+        !newApartmentManager.email || !newApartmentManager.branch) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields (First Name, Last Name, Email, Branch).",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Call edge function to create user and send invitation
+      const response = await supabase.functions.invoke('invite-apartment-manager', {
+        body: {
+          first_name: newApartmentManager.first_name,
+          last_name: newApartmentManager.last_name,
+          email: newApartmentManager.email,
+          contact_number: newApartmentManager.contact_number || null,
+          branch: newApartmentManager.branch
+        }
+      });
+
+      console.log('Edge function response:', response);
+
+      // Check for errors in the response
+      if (response.error) {
+        console.error('Edge function error:', response.error);
+        throw response.error;
+      }
+
+      // Check if the data contains an error
+      if (response.data && response.data.error) {
+        console.error('Edge function returned error in data:', response.data);
+        const errorMsg = response.data.error || 'Unknown error from edge function';
+        const errorDetails = response.data.details ? ` Details: ${response.data.details}` : '';
+        const errorHint = response.data.hint ? ` Hint: ${response.data.hint}` : '';
+        throw new Error(`${errorMsg}${errorDetails}${errorHint}`);
+      }
+
+      // Check if response is successful
+      if (!response.data || !response.data.success) {
+        throw new Error('Edge function did not return success. Please check the function logs.');
+      }
+
+      toast({
+        title: "Success",
+        description: "Invitation sent successfully. The apartment manager will receive an email with a link to set up their password.",
+      });
+
+      // Reset form and close dialog
+      setNewApartmentManager({
+        first_name: '',
+        last_name: '',
+        email: '',
+        contact_number: '',
+        branch: ''
+      });
+      setAddApartmentManagerDialogOpen(false);
+      
+      // Refresh data
+      await fetchAllData();
+    } catch (error: any) {
+      console.error('Error creating apartment manager:', error);
+      toast({
+        title: "Error",
+        description: `Failed to create apartment manager: ${error.message || 'Unknown error'}`,
         variant: "destructive"
       });
     }
@@ -827,6 +910,10 @@ const SuperAdminDashboard = () => {
           <TabsContent value="apartment_managers" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">All Apartment Managers</h2>
+              <Button onClick={() => setAddApartmentManagerDialogOpen(true)} className="flex items-center space-x-2">
+                <Plus className="w-4 h-4" />
+                <span>Add New Apartment Manager</span>
+              </Button>
             </div>
 
             <Card>
@@ -837,7 +924,6 @@ const SuperAdminDashboard = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Contact</TableHead>
-                      <TableHead>Company</TableHead>
                       <TableHead>Branch</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -848,7 +934,6 @@ const SuperAdminDashboard = () => {
                         <TableCell>{`${apartment_manager.first_name || ''} ${apartment_manager.last_name || ''}`.trim() || 'N/A'}</TableCell>
                         <TableCell>{apartment_manager.email || 'N/A'}</TableCell>
                         <TableCell>{apartment_manager.contact_number || 'N/A'}</TableCell>
-                        <TableCell>{apartment_manager.company_name || 'N/A'}</TableCell>
                         <TableCell>{apartment_manager.branch || 'N/A'}</TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
@@ -1088,6 +1173,86 @@ const SuperAdminDashboard = () => {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Add Apartment Manager Dialog */}
+      <Dialog open={addApartmentManagerDialogOpen} onOpenChange={setAddApartmentManagerDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add New Apartment Manager</DialogTitle>
+            <DialogDescription>
+              Create a new apartment manager account. They will receive an invitation email with a link to set up their password.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">First Name *</label>
+                <Input
+                  value={newApartmentManager.first_name}
+                  onChange={(e) => setNewApartmentManager({ ...newApartmentManager, first_name: e.target.value })}
+                  placeholder="First name"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Last Name *</label>
+                <Input
+                  value={newApartmentManager.last_name}
+                  onChange={(e) => setNewApartmentManager({ ...newApartmentManager, last_name: e.target.value })}
+                  placeholder="Last name"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Email *</label>
+              <Input
+                type="email"
+                value={newApartmentManager.email}
+                onChange={(e) => setNewApartmentManager({ ...newApartmentManager, email: e.target.value })}
+                placeholder="email@example.com"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Contact Number</label>
+              <Input
+                value={newApartmentManager.contact_number}
+                onChange={(e) => setNewApartmentManager({ ...newApartmentManager, contact_number: e.target.value })}
+                placeholder="+63XXXXXXXXXX"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Branch *</label>
+              <Select
+                value={newApartmentManager.branch}
+                onValueChange={(value) => setNewApartmentManager({ ...newApartmentManager, branch: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cainta">Cainta Rizal Branch</SelectItem>
+                  <SelectItem value="sampaloc">Sampaloc Manila Branch</SelectItem>
+                  <SelectItem value="cubao">Cubao QC Branch</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setAddApartmentManagerDialogOpen(false);
+              setNewApartmentManager({
+                first_name: '',
+                last_name: '',
+                email: '',
+                contact_number: '',
+                branch: ''
+              });
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddApartmentManager}>Create Apartment Manager</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
