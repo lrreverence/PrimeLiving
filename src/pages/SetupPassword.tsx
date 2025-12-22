@@ -33,7 +33,8 @@ const SetupPassword = () => {
     const token = accessToken || queryAccessToken;
     const tokenType = type || queryType;
 
-    if (!token || tokenType !== 'invite') {
+    // Accept both 'invite' and 'magiclink' token types
+    if (!token || (tokenType !== 'invite' && tokenType !== 'magiclink')) {
       setError('Invalid or missing invitation link. Please contact your administrator.');
       setIsSettingUp(false);
     } else {

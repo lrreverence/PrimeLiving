@@ -138,19 +138,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Invite user using admin API (this creates the user and sends invitation email)
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      email,
-      {
-        data: {
-          name: `${first_name} ${last_name}`,
-          role: 'apartment_manager',
-          uiRole: 'apartment_manager',
-          branch: branch
-        },
-        redirectTo: `${Deno.env.get('SITE_URL') || 'http://localhost:5173'}/setup-password`
+    // Create user account (without sending default Supabase email)
+    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
+      email: email,
+      email_confirm: true, // Auto-confirm email so user can log in after setting password
+      user_metadata: {
+        name: `${first_name} ${last_name}`,
+        role: 'apartment_manager',
+        uiRole: 'apartment_manager',
+        branch: branch
       }
-    );
+    });
 
     if (userError) {
       console.error('Error creating user:', userError);
@@ -231,28 +229,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Supabase's inviteUserByEmail already sends an invitation email automatically
-    // The email will contain a link that redirects to /setup-password
-    // If you want to send a custom email instead, you can use the code below
-    
+    // Generate magic link for password setup
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
     const EMAIL_FROM = Deno.env.get('EMAIL_FROM') || 'onboarding@resend.dev';
     const SITE_URL = Deno.env.get('SITE_URL') || 'http://localhost:5173';
 
-    // Generate invitation link for custom email (optional)
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'invite',
+      type: 'magiclink',
       email: email,
       options: {
         redirectTo: `${SITE_URL}/setup-password`
       }
     });
 
+    if (inviteError) {
+      console.error('Error generating magic link:', inviteError);
+      // Don't fail the whole operation, just log it
+    }
+
     const invitationLink = inviteData?.properties?.action_link;
 
-    // Uncomment the section below if you want to send a custom email instead of Supabase's default
-    // Note: This will send a duplicate email if Supabase's email is also enabled
-    /*
+    // Send custom email with Resend
     if (RESEND_API_KEY && invitationLink) {
       
       const emailHtml = `
@@ -321,7 +318,6 @@ Prime Living - Property Management System
         // Don't fail the whole operation, user was created successfully
       }
     }
-    */
 
     return new Response(
       JSON.stringify({ 
