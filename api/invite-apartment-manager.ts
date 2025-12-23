@@ -77,18 +77,20 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Invalid email address' });
     }
 
-    // Check if apartment manager with this email already exists
-    const { data: existingManager, error: checkError } = await supabaseAdmin
+    // Check if email already exists in apartment_managers table (case-insensitive)
+    // Use ilike for case-insensitive matching
+    const normalizedEmail = email.toLowerCase().trim();
+    const { data: existingManager, error: checkManagerError } = await supabaseAdmin
       .from('apartment_managers')
       .select('apartment_manager_id, email, user_id')
-      .eq('email', email)
+      .ilike('email', normalizedEmail)
       .maybeSingle();
 
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found" which is OK
-      console.error('Error checking existing manager:', checkError);
+    if (checkManagerError && checkManagerError.code !== 'PGRST116') { // PGRST116 is "not found" which is OK
+      console.error('Error checking existing manager:', checkManagerError);
       return res.status(500).json({
         error: 'Failed to check if email already exists',
-        details: checkError.message
+        details: checkManagerError.message
       });
     }
 
@@ -96,6 +98,28 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({
         error: `Apartment manager with email ${email} already exists`,
         hint: 'Please use a different email address or update the existing manager'
+      });
+    }
+
+    // Also check if email exists in tenants table (case-insensitive)
+    const { data: existingTenant, error: checkTenantError } = await supabaseAdmin
+      .from('tenants')
+      .select('tenant_id, email')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    if (checkTenantError && checkTenantError.code !== 'PGRST116') {
+      console.error('Error checking existing tenant:', checkTenantError);
+      return res.status(500).json({
+        error: 'Failed to check if email already exists in tenants',
+        details: checkTenantError.message
+      });
+    }
+
+    if (existingTenant) {
+      return res.status(400).json({
+        error: `Email ${email} is already registered as a tenant`,
+        hint: 'Please use a different email address. This email is already associated with a tenant account.'
       });
     }
 
@@ -146,15 +170,16 @@ export default async function handler(req: any, res: any) {
     }
 
     // Create apartment_manager record in apartment_managers table
+    // Use normalized email (already normalized above)
     const { error: managerError } = await supabaseAdmin
       .from('apartment_managers')
       .insert({
         user_id: userData.user.id,
-        first_name: first_name,
-        last_name: last_name,
-        email: email,
-        contact_number: contact_number || null,
-        branch: branch,
+        first_name: first_name.trim(),
+        last_name: last_name.trim(),
+        email: normalizedEmail,
+        contact_number: contact_number ? contact_number.trim() : null,
+        branch: branch.trim(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
@@ -163,8 +188,17 @@ export default async function handler(req: any, res: any) {
       // If apartment manager creation fails, delete the auth user
       await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
       console.error('Error creating apartment manager:', managerError);
+      
+      // Provide more specific error message for duplicate email
+      let errorMessage = `Failed to create apartment manager record: ${managerError.message}`;
+      if (managerError.message?.includes('duplicate key') || managerError.message?.includes('unique constraint') || managerError.message?.includes('landlords_email_key')) {
+        errorMessage = `Email ${email} is already registered. Please use a different email address.`;
+      }
+      
       return res.status(400).json({ 
-        error: `Failed to create apartment manager record: ${managerError.message}` 
+        error: errorMessage,
+        details: managerError.message,
+        code: managerError.code
       });
     }
 
