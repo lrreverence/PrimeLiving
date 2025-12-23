@@ -426,37 +426,36 @@ const SuperAdminDashboard = () => {
     }
 
     try {
-      // Call edge function to create user and send invitation
-      const response = await supabase.functions.invoke('invite-apartment-manager', {
-        body: {
+      // Call API route to create user and send invitation
+      const response = await fetch('/api/invite-apartment-manager', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           first_name: newApartmentManager.first_name,
           last_name: newApartmentManager.last_name,
           email: newApartmentManager.email,
           contact_number: newApartmentManager.contact_number || null,
           branch: newApartmentManager.branch
-        }
+        })
       });
 
-      console.log('Edge function response:', response);
+      const data = await response.json();
+
+      console.log('API response:', data);
 
       // Check for errors in the response
-      if (response.error) {
-        console.error('Edge function error:', response.error);
-        throw response.error;
-      }
-
-      // Check if the data contains an error
-      if (response.data && response.data.error) {
-        console.error('Edge function returned error in data:', response.data);
-        const errorMsg = response.data.error || 'Unknown error from edge function';
-        const errorDetails = response.data.details ? ` Details: ${response.data.details}` : '';
-        const errorHint = response.data.hint ? ` Hint: ${response.data.hint}` : '';
+      if (!response.ok) {
+        const errorMsg = data.error || 'Unknown error from API';
+        const errorDetails = data.details ? ` Details: ${data.details}` : '';
+        const errorHint = data.hint ? ` Hint: ${data.hint}` : '';
         throw new Error(`${errorMsg}${errorDetails}${errorHint}`);
       }
 
       // Check if response is successful
-      if (!response.data || !response.data.success) {
-        throw new Error('Edge function did not return success. Please check the function logs.');
+      if (!data || !data.success) {
+        throw new Error('API did not return success. Please check the server logs.');
       }
 
       toast({

@@ -21,25 +21,38 @@ const SetupPassword = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if we have the necessary tokens in the URL
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const accessToken = hashParams.get('access_token');
-    const type = hashParams.get('type');
+    // Verify user has a valid session from the email link
+    // Following EMAIL_PASSWORD_SETUP_GUIDE.md: check for existing session first
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          // Fallback: check for tokens in URL (for direct links without callback)
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const type = hashParams.get('type');
+          
+          const queryAccessToken = searchParams.get('access_token');
+          const queryType = searchParams.get('type');
+
+          const token = accessToken || queryAccessToken;
+          const tokenType = type || queryType;
+
+          // If no session and no tokens, show error
+          if (!token || (tokenType !== 'invite' && tokenType !== 'magiclink' && tokenType !== 'signup' && tokenType !== 'recovery')) {
+            setError('Please use the invitation link from your email. If you came from the callback, please try again.');
+          }
+        }
+      } catch (err) {
+        console.error('Error checking auth:', err);
+        setError('Failed to verify authentication. Please try again.');
+      } finally {
+        setIsSettingUp(false);
+      }
+    };
     
-    // Also check query params (some Supabase links use query params)
-    const queryAccessToken = searchParams.get('access_token');
-    const queryType = searchParams.get('type');
-
-    const token = accessToken || queryAccessToken;
-    const tokenType = type || queryType;
-
-    // Accept 'invite', 'magiclink', 'signup', and 'recovery' token types
-    if (!token || (tokenType !== 'invite' && tokenType !== 'magiclink' && tokenType !== 'signup' && tokenType !== 'recovery')) {
-      setError('Invalid or missing invitation link. Please contact your administrator.');
-      setIsSettingUp(false);
-    } else {
-      setIsSettingUp(false);
-    }
+    checkAuth();
   }, [searchParams]);
 
   const handleSetPassword = async (e: React.FormEvent) => {
@@ -65,39 +78,31 @@ const SetupPassword = () => {
     setIsLoading(true);
 
     try {
-      // Get tokens from URL
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const accessToken = hashParams.get('access_token');
-      const refreshToken = hashParams.get('refresh_token');
-      const queryAccessToken = searchParams.get('access_token');
-      const queryRefreshToken = searchParams.get('refresh_token');
+      // Verify session exists (from callback route or direct token)
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        // Fallback: try to get tokens from URL and set session
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        const queryAccessToken = searchParams.get('access_token');
+        const queryRefreshToken = searchParams.get('refresh_token');
 
-      const token = accessToken || queryAccessToken;
-      const refresh = refreshToken || queryRefreshToken;
+        const token = accessToken || queryAccessToken;
+        const refresh = refreshToken || queryRefreshToken;
 
-      if (!token) {
-        throw new Error('Invalid invitation link. Missing access token.');
-      }
+        if (token && refresh) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: token,
+            refresh_token: refresh
+          });
 
-      // Set the session with the invitation token and verify the email
-      if (token && refresh) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: token,
-          refresh_token: refresh
-        });
-
-        if (sessionError) {
-          throw sessionError;
-        }
-      } else if (token && tokenType) {
-        // For signup or recovery type, verify the token
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash: token,
-          type: tokenType === 'recovery' ? 'recovery' : 'signup'
-        });
-
-        if (verifyError) {
-          throw verifyError;
+          if (sessionError) {
+            throw new Error('Session expired. Please use the invitation link again.');
+          }
+        } else {
+          throw new Error('Session expired. Please use the invitation link from your email.');
         }
       }
 
