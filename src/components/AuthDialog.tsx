@@ -6,9 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LoginForm from './LoginForm';
-import SignupForm from './SignupForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -18,7 +16,6 @@ interface AuthDialogProps {
 }
 
 const AuthDialog: React.FC<AuthDialogProps> = ({ open, onOpenChange }) => {
-  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -26,16 +23,8 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ open, onOpenChange }) => {
     onOpenChange(false);
     toast({
       title: "Welcome to PrimeLiving!",
-      description: user ? `Welcome back, ${user.user_metadata?.name || user.email?.split('@')[0] || 'User'}!` : "Account created successfully!",
+      description: user ? `Welcome back, ${user.user_metadata?.name || user.email?.split('@')[0] || 'User'}!` : "Logged in successfully!",
     });
-  };
-
-  const handleSwitchToSignup = () => {
-    setActiveTab('signup');
-  };
-
-  const handleSwitchToLogin = () => {
-    setActiveTab('login');
   };
 
   return (
@@ -43,37 +32,19 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ open, onOpenChange }) => {
       <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="text-center text-2xl font-bold">
-            {activeTab === 'login' ? 'Welcome Back' : 'Join PrimeLiving'}
+            Welcome Back
           </DialogTitle>
           <DialogDescription className="text-center">
-            {activeTab === 'login' 
-              ? 'Sign in to access your account and find your perfect home'
-              : 'Create your account to start your apartment search'
-            }
+            Sign in to access your account and find your perfect home
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto min-h-0">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'login' | 'signup')}>
-            <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
-              <TabsTrigger value="login">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login" className="mt-6">
+          <div className="mt-6">
             <LoginForm 
               onSuccess={handleAuthSuccess}
-              onSwitchToSignup={handleSwitchToSignup}
             />
-          </TabsContent>
-          
-          <TabsContent value="signup" className="mt-6">
-            <SignupForm 
-              onSuccess={handleAuthSuccess}
-              onSwitchToLogin={handleSwitchToLogin}
-            />
-          </TabsContent>
-          </Tabs>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

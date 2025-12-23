@@ -19,11 +19,10 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 interface LoginFormProps {
   onSuccess?: () => void;
-  onSwitchToSignup?: () => void;
   selectedRole?: 'tenant' | 'apartment_manager' | null;
 }
 
-const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignup, selectedRole }) => {
+const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, selectedRole }) => {
   const { login, isLoading } = useAuth();
   const [error, setError] = useState<string>('');
 
@@ -110,19 +109,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignup, sele
               'Sign In'
             )}
           </Button>
-
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">
-              Don't have an account?{' '}
-              <button
-                type="button"
-                onClick={onSwitchToSignup}
-                className="text-primary hover:underline font-medium"
-              >
-                Sign up
-              </button>
-            </p>
-          </div>
         </form>
       </CardContent>
     </Card>

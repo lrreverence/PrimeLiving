@@ -139,7 +139,7 @@ const Header = () => {
             onClick={() => setAuthModalOpen(true)}
             className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-6"
           >
-            Login / Register
+            Login
           </Button>
         )}
       </div>
