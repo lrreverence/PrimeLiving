@@ -244,6 +244,9 @@ export default async function handler(req: any, res: any) {
       
       // Provide more specific error message for duplicate email
       let errorMessage = `Failed to create apartment manager record: ${managerError.message}`;
+      let hint = 'Please try again or contact support if the issue persists.';
+      let existingEmail = null;
+      
       if (managerError.message?.includes('duplicate key') || 
           managerError.message?.includes('unique constraint') || 
           managerError.message?.includes('landlords_email_key') ||
@@ -251,19 +254,23 @@ export default async function handler(req: any, res: any) {
           managerError.code === '23505') {
         
         // Check if the record actually exists now (might have been created by concurrent request)
-        const { data: existingEmail } = await supabaseAdmin
+        const { data: emailCheck } = await supabaseAdmin
           .from('apartment_managers')
           .select('email, apartment_manager_id, user_id')
           .ilike('email', normalizedEmail)
           .maybeSingle();
         
+        existingEmail = emailCheck;
+        
         if (existingEmail) {
           // Record exists - this was a legitimate duplicate
           errorMessage = `Email ${email} is already registered${existingEmail.email !== normalizedEmail ? ` (found as: ${existingEmail.email})` : ''}. Please use a different email address.`;
+          hint = 'This email address is already in use. Please use a different email address.';
         } else {
           // Record doesn't exist - this was likely a race condition that resolved itself
           // The auth user was already cleaned up, so we can suggest retrying
           errorMessage = `Email ${email} registration encountered a conflict. Please try again.`;
+          hint = 'This may have been a temporary conflict. Please try again.';
         }
       }
       
@@ -271,7 +278,7 @@ export default async function handler(req: any, res: any) {
         error: errorMessage,
         details: managerError.message,
         code: managerError.code,
-        hint: existingEmail ? 'This email address is already in use. Please use a different email address.' : 'This may have been a temporary conflict. Please try again.'
+        hint: hint
       });
     }
 
