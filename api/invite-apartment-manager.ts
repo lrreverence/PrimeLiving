@@ -221,15 +221,16 @@ export default async function handler(req: any, res: any) {
       if (managerError.message?.includes('duplicate key') || 
           managerError.message?.includes('unique constraint') || 
           managerError.message?.includes('landlords_email_key') ||
+          managerError.message?.includes('apartment_managers_email_lower_unique') ||
           managerError.code === '23505') {
         
-        // Try to find the existing email with different casing
+        // Try to find the existing email (case-insensitive check)
         const { data: existingEmail } = await supabaseAdmin
           .from('apartment_managers')
           .select('email')
           .ilike('email', normalizedEmail)
           .limit(1)
-          .single();
+          .maybeSingle();
         
         errorMessage = `Email ${email} is already registered${existingEmail?.email ? ` (found as: ${existingEmail.email})` : ''}. Please use a different email address.`;
       }
@@ -238,7 +239,7 @@ export default async function handler(req: any, res: any) {
         error: errorMessage,
         details: managerError.message,
         code: managerError.code,
-        hint: 'This error usually occurs when an email with different casing already exists in the database.'
+        hint: 'This email address is already in use. Please use a different email address.'
       });
     }
 
