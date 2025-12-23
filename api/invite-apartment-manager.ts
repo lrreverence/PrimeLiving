@@ -238,48 +238,66 @@ export default async function handler(req: any, res: any) {
       });
 
     if (managerError) {
-      // If apartment manager creation fails, delete the auth user
-      await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
       console.error('Error creating apartment manager:', managerError);
       
-      // Provide more specific error message for duplicate email
-      let errorMessage = `Failed to create apartment manager record: ${managerError.message}`;
-      let hint = 'Please try again or contact support if the issue persists.';
-      let existingEmail = null;
-      
-      if (managerError.message?.includes('duplicate key') || 
+      // Check if this is a duplicate key error
+      const isDuplicateError = managerError.message?.includes('duplicate key') || 
           managerError.message?.includes('unique constraint') || 
           managerError.message?.includes('landlords_email_key') ||
           managerError.message?.includes('apartment_managers_email_lower_unique') ||
-          managerError.code === '23505') {
-        
+          managerError.code === '23505';
+      
+      if (isDuplicateError) {
         // Check if the record actually exists now (might have been created by concurrent request)
-        const { data: emailCheck } = await supabaseAdmin
+        const { data: existingRecord } = await supabaseAdmin
           .from('apartment_managers')
           .select('email, apartment_manager_id, user_id')
           .ilike('email', normalizedEmail)
           .maybeSingle();
         
-        existingEmail = emailCheck;
-        
-        if (existingEmail) {
-          // Record exists - this was a legitimate duplicate
-          errorMessage = `Email ${email} is already registered${existingEmail.email !== normalizedEmail ? ` (found as: ${existingEmail.email})` : ''}. Please use a different email address.`;
-          hint = 'This email address is already in use. Please use a different email address.';
+        if (existingRecord) {
+          // Record exists - check if it was created by our user_id (success case) or another request
+          if (existingRecord.user_id === userData.user.id) {
+            // Our record was created! This is actually success, just a timing issue
+            return res.status(200).json({
+              success: true,
+              message: 'Apartment manager created and invitation email sent via Supabase',
+              user_id: userData.user.id,
+              email_service: 'supabase',
+              note: 'Record was created successfully (duplicate error was a false positive)'
+            });
+          } else {
+            // Record exists with different user_id - legitimate duplicate
+            // Clean up our auth user since the record belongs to someone else
+            await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
+            return res.status(400).json({
+              error: `Email ${email} is already registered${existingRecord.email !== normalizedEmail ? ` (found as: ${existingRecord.email})` : ''}. Please use a different email address.`,
+              hint: 'This email address is already in use. Please use a different email address.',
+              existing_email: existingRecord.email
+            });
+          }
         } else {
-          // Record doesn't exist - this was likely a race condition that resolved itself
-          // The auth user was already cleaned up, so we can suggest retrying
-          errorMessage = `Email ${email} registration encountered a conflict. Please try again.`;
-          hint = 'This may have been a temporary conflict. Please try again.';
+          // Duplicate error but record doesn't exist - this is a race condition
+          // The record might have been created and deleted, or there's a timing issue
+          // Clean up auth user and suggest retry
+          await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
+          return res.status(400).json({
+            error: `Email ${email} registration encountered a conflict. Please try again.`,
+            hint: 'This may have been a temporary conflict. Please wait a moment and try again.',
+            details: managerError.message
+          });
         }
+      } else {
+        // Not a duplicate error - some other issue
+        // Clean up auth user
+        await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
+        return res.status(400).json({
+          error: `Failed to create apartment manager record: ${managerError.message}`,
+          details: managerError.message,
+          code: managerError.code,
+          hint: 'Please try again or contact support if the issue persists.'
+        });
       }
-      
-      return res.status(400).json({ 
-        error: errorMessage,
-        details: managerError.message,
-        code: managerError.code,
-        hint: hint
-      });
     }
 
     return res.status(200).json({
