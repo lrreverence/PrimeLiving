@@ -141,7 +141,8 @@ Deno.serve(async (req) => {
     // Get environment variables for email service
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
     const EMAIL_FROM = Deno.env.get('EMAIL_FROM') || 'noreply@caesarisidrovaay.online';
-    const SITE_URL = Deno.env.get('SITE_URL') || 'https://prime-living-eosin.vercel.app';
+    // Remove trailing slash from SITE_URL to avoid double slashes
+    const SITE_URL = (Deno.env.get('SITE_URL') || 'https://prime-living-eosin.vercel.app').replace(/\/$/, '');
     const useResend = !!RESEND_API_KEY;
 
     let userData;
@@ -150,9 +151,14 @@ Deno.serve(async (req) => {
     if (useResend) {
       // Use custom email flow with Resend
       console.log('Using Resend for invitation email');
+
+      // Generate a random temporary password
+      const tempPassword = Math.random().toString(36).slice(-16) + Math.random().toString(36).slice(-16);
+
       const result = await supabaseAdmin.auth.admin.createUser({
         email: email,
-        email_confirm: false, // Keep unconfirmed so we can send signup link
+        password: tempPassword,
+        email_confirm: true, // Auto-confirm so they can reset password immediately
         user_metadata: {
           name: `${first_name} ${last_name}`,
           role: 'apartment_manager',
@@ -262,8 +268,9 @@ Deno.serve(async (req) => {
 
     // Send custom email with Resend (only if using Resend flow)
     if (useResend) {
+      // Generate password recovery link for the user to set their password
       const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'signup',
+        type: 'recovery',
         email: email,
         options: {
           redirectTo: `${SITE_URL}/setup-password`

@@ -33,8 +33,8 @@ const SetupPassword = () => {
     const token = accessToken || queryAccessToken;
     const tokenType = type || queryType;
 
-    // Accept 'invite', 'magiclink', and 'signup' token types
-    if (!token || (tokenType !== 'invite' && tokenType !== 'magiclink' && tokenType !== 'signup')) {
+    // Accept 'invite', 'magiclink', 'signup', and 'recovery' token types
+    if (!token || (tokenType !== 'invite' && tokenType !== 'magiclink' && tokenType !== 'signup' && tokenType !== 'recovery')) {
       setError('Invalid or missing invitation link. Please contact your administrator.');
       setIsSettingUp(false);
     } else {
@@ -89,11 +89,11 @@ const SetupPassword = () => {
         if (sessionError) {
           throw sessionError;
         }
-      } else if (token) {
-        // For signup type, verify the email with the token
+      } else if (token && tokenType) {
+        // For signup or recovery type, verify the token
         const { error: verifyError } = await supabase.auth.verifyOtp({
           token_hash: token,
-          type: 'signup'
+          type: tokenType === 'recovery' ? 'recovery' : 'signup'
         });
 
         if (verifyError) {
