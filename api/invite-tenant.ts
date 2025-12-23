@@ -311,9 +311,11 @@ export default async function handler(req: any, res: any) {
           // Record exists - check if it was created by our user_id (success case) or another request
           if (existingRecord.user_id === userData.user.id) {
             // Our record was created! This is actually success, just a timing issue
-            // Now create contract and assign unit
-            const tenantId = existingRecord.tenant_id;
-            await createContractAndAssignUnit(supabaseAdmin, tenantId, unit_id);
+            // If unit_id is provided, create contract and assign unit
+            if (unit_id) {
+              const tenantId = existingRecord.tenant_id;
+              await createContractAndAssignUnit(supabaseAdmin, tenantId, unit_id);
+            }
             
             return res.status(200).json({
               success: true,
