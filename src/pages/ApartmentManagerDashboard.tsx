@@ -1313,6 +1313,7 @@ const ApartmentManagerDashboard = () => {
               onSearchChange={setSearchTerm}
               units={units}
               onTenantUpdate={fetchTenants}
+              apartmentManagerBranch={apartmentManagerData?.branch}
             />
           </TabsContent>
 

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Search, Plus, Edit, Eye, Trash2, IdCard, X, Download, FileText, User, Mail, Phone, MapPin, Calendar, Users, Briefcase, Building, Save } from 'lucide-react';
@@ -42,9 +42,10 @@ interface TenantsTabProps {
   onSearchChange: (value: string) => void;
   units?: Unit[];
   onTenantUpdate?: () => void;
+  apartmentManagerBranch?: string;
 }
 
-export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange, units = [], onTenantUpdate }: TenantsTabProps) => {
+export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange, units = [], onTenantUpdate, apartmentManagerBranch }: TenantsTabProps) => {
   const { toast } = useToast();
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [viewIdModalOpen, setViewIdModalOpen] = useState(false);
@@ -53,6 +54,15 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [inviteTenantDialogOpen, setInviteTenantDialogOpen] = useState(false);
+  const [inviteTenantLoading, setInviteTenantLoading] = useState(false);
+  const [newTenant, setNewTenant] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    contact_number: '',
+    branch: apartmentManagerBranch || ''
+  });
   const [updatingUnit, setUpdatingUnit] = useState<number | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
   const [updatingContractPeriod, setUpdatingContractPeriod] = useState<number | null>(null);
@@ -501,6 +511,83 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
     }
   };
 
+  const handleInviteTenant = async () => {
+    // Validate required fields
+    if (!newTenant.first_name || !newTenant.last_name || 
+        !newTenant.email || !newTenant.branch) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields (First Name, Last Name, Email, Branch).",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setInviteTenantLoading(true);
+      // Call API route to create user and send invitation
+      const response = await fetch('/api/invite-tenant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          first_name: newTenant.first_name,
+          last_name: newTenant.last_name,
+          email: newTenant.email,
+          contact_number: newTenant.contact_number || null,
+          branch: newTenant.branch
+        })
+      });
+
+      const data = await response.json();
+
+      console.log('API response:', data);
+
+      // Check for errors in the response
+      if (!response.ok) {
+        const errorMsg = data.error || 'Unknown error from API';
+        const errorDetails = data.details ? ` Details: ${data.details}` : '';
+        const errorHint = data.hint ? ` Hint: ${data.hint}` : '';
+        throw new Error(`${errorMsg}${errorDetails}${errorHint}`);
+      }
+
+      // Check if response is successful
+      if (!data || !data.success) {
+        throw new Error('API did not return success. Please check the server logs.');
+      }
+
+      toast({
+        title: "Success",
+        description: "Invitation sent successfully. The tenant will receive an email with a link to set up their password.",
+      });
+
+      // Reset form and close dialog
+      setNewTenant({
+        first_name: '',
+        last_name: '',
+        email: '',
+        contact_number: '',
+        branch: apartmentManagerBranch || ''
+      });
+      setInviteTenantDialogOpen(false);
+      
+      // Refresh tenant data
+      if (onTenantUpdate) {
+        onTenantUpdate();
+      }
+    } catch (error: any) {
+      console.error('Error inviting tenant:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to invite tenant. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setInviteTenantLoading(false);
+    }
+  };
+
   const handleViewId = async (tenant: Tenant) => {
     setSelectedTenant(tenant);
     setViewIdModalOpen(true);
@@ -571,7 +658,10 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
           <h2 className="text-3xl font-bold text-gray-900">Tenant Management</h2>
           <p className="text-gray-600 mt-1">Manage tenant profiles, contracts, and unit assignments.</p>
         </div>
-        <Button className="bg-gray-900 text-white hover:bg-gray-800 flex items-center space-x-2">
+        <Button 
+          className="bg-gray-900 text-white hover:bg-gray-800 flex items-center space-x-2"
+          onClick={() => setInviteTenantDialogOpen(true)}
+        >
           <Plus className="w-4 h-4" />
           <span>Add Tenant</span>
         </Button>
@@ -1436,6 +1526,81 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite Tenant Dialog */}
+      <Dialog open={inviteTenantDialogOpen} onOpenChange={setInviteTenantDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Invite New Tenant</DialogTitle>
+            <DialogDescription>
+              Create a new tenant account. They will receive an invitation email with a link to set up their password.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">First Name *</Label>
+                <Input
+                  value={newTenant.first_name}
+                  onChange={(e) => setNewTenant({ ...newTenant, first_name: e.target.value })}
+                  placeholder="First name"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Last Name *</Label>
+                <Input
+                  value={newTenant.last_name}
+                  onChange={(e) => setNewTenant({ ...newTenant, last_name: e.target.value })}
+                  placeholder="Last name"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Email *</Label>
+              <Input
+                type="email"
+                value={newTenant.email}
+                onChange={(e) => setNewTenant({ ...newTenant, email: e.target.value })}
+                placeholder="email@example.com"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Contact Number</Label>
+              <Input
+                value={newTenant.contact_number}
+                onChange={(e) => setNewTenant({ ...newTenant, contact_number: e.target.value })}
+                placeholder="+63XXXXXXXXXX"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Branch *</Label>
+              <Input
+                value={newTenant.branch}
+                onChange={(e) => setNewTenant({ ...newTenant, branch: e.target.value })}
+                placeholder="Branch"
+                disabled={!!apartmentManagerBranch}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setInviteTenantDialogOpen(false);
+              setNewTenant({
+                first_name: '',
+                last_name: '',
+                email: '',
+                contact_number: '',
+                branch: apartmentManagerBranch || ''
+              });
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleInviteTenant} disabled={inviteTenantLoading}>
+              {inviteTenantLoading ? 'Sending Invitation...' : 'Send Invitation'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
