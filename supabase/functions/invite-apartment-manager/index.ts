@@ -138,17 +138,48 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create user account (without sending default Supabase email)
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
-      email: email,
-      email_confirm: true, // Auto-confirm email so user can log in after setting password
-      user_metadata: {
-        name: `${first_name} ${last_name}`,
-        role: 'apartment_manager',
-        uiRole: 'apartment_manager',
-        branch: branch
-      }
-    });
+    // Get environment variables for email service
+    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+    const EMAIL_FROM = Deno.env.get('EMAIL_FROM') || 'noreply@caesarisidrovaay.online';
+    const SITE_URL = Deno.env.get('SITE_URL') || 'https://prime-living-eosin.vercel.app';
+    const useResend = !!RESEND_API_KEY;
+
+    let userData;
+    let userError;
+
+    if (useResend) {
+      // Use custom email flow with Resend
+      console.log('Using Resend for invitation email');
+      const result = await supabaseAdmin.auth.admin.createUser({
+        email: email,
+        email_confirm: false, // Keep unconfirmed so we can send signup link
+        user_metadata: {
+          name: `${first_name} ${last_name}`,
+          role: 'apartment_manager',
+          uiRole: 'apartment_manager',
+          branch: branch
+        }
+      });
+      userData = result.data;
+      userError = result.error;
+    } else {
+      // Use Supabase's default email
+      console.log('Using Supabase default invitation email');
+      const result = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        email,
+        {
+          data: {
+            name: `${first_name} ${last_name}`,
+            role: 'apartment_manager',
+            uiRole: 'apartment_manager',
+            branch: branch
+          },
+          redirectTo: `${SITE_URL}/setup-password`
+        }
+      );
+      userData = result.data;
+      userError = result.error;
+    }
 
     if (userError) {
       console.error('Error creating user:', userError);
@@ -229,28 +260,50 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Generate magic link for password setup
-    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
-    const EMAIL_FROM = Deno.env.get('EMAIL_FROM') || 'onboarding@resend.dev';
-    const SITE_URL = Deno.env.get('SITE_URL') || 'http://localhost:5173';
+    // Send custom email with Resend (only if using Resend flow)
+    if (useResend) {
+      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'signup',
+        email: email,
+        options: {
+          redirectTo: `${SITE_URL}/setup-password`
+        }
+      });
 
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: email,
-      options: {
-        redirectTo: `${SITE_URL}/setup-password`
+      if (inviteError) {
+        console.error('Error generating invite link:', inviteError);
+        // Clean up: delete the created user
+        await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to generate invitation link',
+            details: inviteError.message
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
       }
-    });
 
-    if (inviteError) {
-      console.error('Error generating magic link:', inviteError);
-      // Don't fail the whole operation, just log it
-    }
+      const invitationLink = inviteData?.properties?.action_link;
 
-    const invitationLink = inviteData?.properties?.action_link;
+      if (!invitationLink) {
+        console.error('No invitation link generated');
+        // Clean up: delete the created user
+        await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to generate invitation link'
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
 
-    // Send custom email with Resend
-    if (RESEND_API_KEY && invitationLink) {
+      console.log('Sending invitation email via Resend to:', email);
       
       const emailHtml = `
         <!DOCTYPE html>
@@ -315,15 +368,34 @@ Prime Living - Property Management System
       if (!resendResponse.ok) {
         const errorData = await resendResponse.text();
         console.error('Resend API error:', errorData);
-        // Don't fail the whole operation, user was created successfully
+
+        // Delete the created user since email failed
+        await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
+
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to send invitation email',
+            details: errorData,
+            hint: 'Please check your Resend API key and email configuration'
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
       }
+
+      console.log('Invitation email sent successfully via Resend');
     }
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
-        message: 'Apartment manager created and invitation sent',
-        user_id: userData.user.id
+        message: useResend
+          ? 'Apartment manager created and custom invitation email sent via Resend'
+          : 'Apartment manager created and invitation email sent via Supabase',
+        user_id: userData.user.id,
+        email_service: useResend ? 'resend' : 'supabase'
       }),
       { 
         status: 200, 

@@ -33,8 +33,8 @@ const SetupPassword = () => {
     const token = accessToken || queryAccessToken;
     const tokenType = type || queryType;
 
-    // Accept both 'invite' and 'magiclink' token types
-    if (!token || (tokenType !== 'invite' && tokenType !== 'magiclink')) {
+    // Accept 'invite', 'magiclink', and 'signup' token types
+    if (!token || (tokenType !== 'invite' && tokenType !== 'magiclink' && tokenType !== 'signup')) {
       setError('Invalid or missing invitation link. Please contact your administrator.');
       setIsSettingUp(false);
     } else {
@@ -79,7 +79,7 @@ const SetupPassword = () => {
         throw new Error('Invalid invitation link. Missing access token.');
       }
 
-      // Set the session with the invitation token
+      // Set the session with the invitation token and verify the email
       if (token && refresh) {
         const { error: sessionError } = await supabase.auth.setSession({
           access_token: token,
@@ -88,6 +88,16 @@ const SetupPassword = () => {
 
         if (sessionError) {
           throw sessionError;
+        }
+      } else if (token) {
+        // For signup type, verify the email with the token
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: token,
+          type: 'signup'
+        });
+
+        if (verifyError) {
+          throw verifyError;
         }
       }
 
