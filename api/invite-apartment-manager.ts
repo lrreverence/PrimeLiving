@@ -142,21 +142,6 @@ export default async function handler(req: any, res: any) {
     // Following EMAIL_PASSWORD_SETUP_GUIDE.md: redirect to callback route first
     const redirectTo = `${SITE_URL}/auth/callback`;
 
-    // Double-check email doesn't exist right before creating user (race condition protection)
-    const { data: lastMinuteCheck } = await supabaseAdmin
-      .from('apartment_managers')
-      .select('email')
-      .ilike('email', normalizedEmail)
-      .maybeSingle();
-    
-    if (lastMinuteCheck) {
-      return res.status(400).json({
-        error: `Email ${email} was just registered. Please refresh and try again.`,
-        hint: 'This may be due to a concurrent request. Please wait a moment and try again.',
-        existing_email: lastMinuteCheck.email
-      });
-    }
-
     // Check if auth user already exists before inviting
     // Try to get user by email (this method may not exist in all Supabase versions)
     let existingAuthUser = null;
@@ -234,25 +219,10 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Final check right before insert (race condition protection)
-    const { data: finalCheck } = await supabaseAdmin
-      .from('apartment_managers')
-      .select('email, apartment_manager_id')
-      .ilike('email', normalizedEmail)
-      .maybeSingle();
-    
-    if (finalCheck) {
-      // Clean up the auth user we just created
-      await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
-      return res.status(400).json({
-        error: `Email ${email} was just registered by another request`,
-        hint: 'This may be due to a concurrent request. Please refresh and try again.',
-        existing_email: finalCheck.email,
-        existing_id: finalCheck.apartment_manager_id
-      });
-    }
-
     // Create apartment_manager record in apartment_managers table
+    // Note: We rely on the database unique constraint to prevent duplicates
+    // The checks above should catch most cases, but if there's a race condition,
+    // the database constraint will catch it and we'll handle it gracefully
     // Use normalized email (already normalized above)
     const { error: managerError } = await supabaseAdmin
       .from('apartment_managers')
@@ -280,22 +250,28 @@ export default async function handler(req: any, res: any) {
           managerError.message?.includes('apartment_managers_email_lower_unique') ||
           managerError.code === '23505') {
         
-        // Try to find the existing email (case-insensitive check)
+        // Check if the record actually exists now (might have been created by concurrent request)
         const { data: existingEmail } = await supabaseAdmin
           .from('apartment_managers')
-          .select('email')
+          .select('email, apartment_manager_id, user_id')
           .ilike('email', normalizedEmail)
-          .limit(1)
           .maybeSingle();
         
-        errorMessage = `Email ${email} is already registered${existingEmail?.email ? ` (found as: ${existingEmail.email})` : ''}. Please use a different email address.`;
+        if (existingEmail) {
+          // Record exists - this was a legitimate duplicate
+          errorMessage = `Email ${email} is already registered${existingEmail.email !== normalizedEmail ? ` (found as: ${existingEmail.email})` : ''}. Please use a different email address.`;
+        } else {
+          // Record doesn't exist - this was likely a race condition that resolved itself
+          // The auth user was already cleaned up, so we can suggest retrying
+          errorMessage = `Email ${email} registration encountered a conflict. Please try again.`;
+        }
       }
       
       return res.status(400).json({ 
         error: errorMessage,
         details: managerError.message,
         code: managerError.code,
-        hint: 'This email address is already in use. Please use a different email address.'
+        hint: existingEmail ? 'This email address is already in use. Please use a different email address.' : 'This may have been a temporary conflict. Please try again.'
       });
     }
 
