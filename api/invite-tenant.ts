@@ -119,7 +119,6 @@ export default async function handler(req: any, res: any) {
     if (!last_name) missingFields.push('last_name');
     if (!email) missingFields.push('email');
     if (!branch) missingFields.push('branch');
-    if (!unit_id) missingFields.push('unit_id');
 
     if (missingFields.length > 0) {
       return res.status(400).json({
@@ -128,8 +127,7 @@ export default async function handler(req: any, res: any) {
           first_name: !!first_name, 
           last_name: !!last_name, 
           email: !!email, 
-          branch: !!branch,
-          unit_id: !!unit_id
+          branch: !!branch
         }
       });
     }

@@ -61,8 +61,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
     last_name: '',
     email: '',
     contact_number: '',
-    branch: apartmentManagerBranch || '',
-    unit_id: ''
+    branch: apartmentManagerBranch || ''
   });
   const [updatingUnit, setUpdatingUnit] = useState<number | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
@@ -515,10 +514,10 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
   const handleInviteTenant = async () => {
     // Validate required fields
     if (!newTenant.first_name || !newTenant.last_name || 
-        !newTenant.email || !newTenant.branch || !newTenant.unit_id) {
+        !newTenant.email || !newTenant.branch) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields (First Name, Last Name, Email, Unit).",
+        description: "Please fill in all required fields (First Name, Last Name, Email).",
         variant: "destructive"
       });
       return;
@@ -537,8 +536,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
           last_name: newTenant.last_name,
           email: newTenant.email,
           contact_number: newTenant.contact_number || null,
-          branch: newTenant.branch,
-          unit_id: parseInt(newTenant.unit_id)
+          branch: newTenant.branch
         })
       });
 
@@ -570,8 +568,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
         last_name: '',
         email: '',
         contact_number: '',
-        branch: apartmentManagerBranch || '',
-        unit_id: ''
+        branch: apartmentManagerBranch || ''
       });
       setInviteTenantDialogOpen(false);
       
@@ -669,8 +666,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
               last_name: '',
               email: '',
               contact_number: '',
-              branch: apartmentManagerBranch || '',
-              unit_id: ''
+              branch: apartmentManagerBranch || ''
             });
             setInviteTenantDialogOpen(true);
           }}
@@ -1597,48 +1593,6 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
               />
               <p className="text-xs text-gray-500 mt-1">Branch is automatically set to your branch</p>
             </div>
-            <div>
-              <Label className="text-sm font-medium">Assign Unit *</Label>
-              <Select
-                value={newTenant.unit_id}
-                onValueChange={(value) => setNewTenant({ ...newTenant, unit_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a unit to assign" />
-                </SelectTrigger>
-                <SelectContent>
-                  {units
-                    .filter(unit => {
-                      // Filter to show only available units (no active contracts or status = 'available')
-                      const contracts = unit.contracts;
-                      const hasActiveContract = contracts && (
-                        Array.isArray(contracts) 
-                          ? contracts.some((c: any) => c.status === 'active')
-                          : contracts.status === 'active'
-                      );
-                      const status = unit.status?.toLowerCase() || 'available';
-                      return !hasActiveContract && (status === 'available' || status === 'vacant');
-                    })
-                    .map((unit) => (
-                      <SelectItem key={unit.unit_id} value={unit.unit_id.toString()}>
-                        {unit.unit_number} - {unit.unit_type || 'N/A'} (₱{parseFloat(unit.monthly_rent || '0').toLocaleString()}/month)
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              {units.filter(unit => {
-                const contracts = unit.contracts;
-                const hasActiveContract = contracts && (
-                  Array.isArray(contracts) 
-                    ? contracts.some((c: any) => c.status === 'active')
-                    : contracts.status === 'active'
-                );
-                const status = unit.status?.toLowerCase() || 'available';
-                return !hasActiveContract && (status === 'available' || status === 'vacant');
-              }).length === 0 && (
-                <p className="text-xs text-yellow-600 mt-1">No available units. Please create a unit first.</p>
-              )}
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
@@ -1648,8 +1602,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                 last_name: '',
                 email: '',
                 contact_number: '',
-                branch: apartmentManagerBranch || '',
-                unit_id: ''
+                branch: apartmentManagerBranch || ''
               });
             }}>
               Cancel
