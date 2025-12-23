@@ -540,17 +540,24 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
         })
       });
 
+      // Check if response is ok before trying to parse JSON
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        const errorMsg = errorData.error || 'Unknown error from API';
+        const errorDetails = errorData.details ? ` Details: ${errorData.details}` : '';
+        const errorHint = errorData.hint ? ` Hint: ${errorData.hint}` : '';
+        throw new Error(`${errorMsg}${errorDetails}${errorHint}`);
+      }
+
       const data = await response.json();
 
       console.log('API response:', data);
 
-      // Check for errors in the response
-      if (!response.ok) {
-        const errorMsg = data.error || 'Unknown error from API';
-        const errorDetails = data.details ? ` Details: ${data.details}` : '';
-        const errorHint = data.hint ? ` Hint: ${data.hint}` : '';
-        throw new Error(`${errorMsg}${errorDetails}${errorHint}`);
-      }
 
       // Check if response is successful
       if (!data || !data.success) {
