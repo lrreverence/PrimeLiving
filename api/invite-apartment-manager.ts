@@ -77,50 +77,62 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Invalid email address' });
     }
 
-    // Check if email already exists in apartment_managers table (case-insensitive)
-    // Use ilike for case-insensitive matching
+    // Normalize email to lowercase and trim whitespace
     const normalizedEmail = email.toLowerCase().trim();
-    const { data: existingManager, error: checkManagerError } = await supabaseAdmin
-      .from('apartment_managers')
-      .select('apartment_manager_id, email, user_id')
-      .ilike('email', normalizedEmail)
-      .maybeSingle();
+    
+    // Check if email already exists using database-level case-insensitive function
+    // This is more reliable than client-side checks due to PostgreSQL's case-sensitive UNIQUE constraints
+    const { data: emailCheck, error: emailCheckError } = await supabaseAdmin
+      .rpc('check_email_exists_case_insensitive', { check_email: normalizedEmail })
+      .single();
 
-    if (checkManagerError && checkManagerError.code !== 'PGRST116') { // PGRST116 is "not found" which is OK
-      console.error('Error checking existing manager:', checkManagerError);
-      return res.status(500).json({
-        error: 'Failed to check if email already exists',
-        details: checkManagerError.message
-      });
-    }
+    if (emailCheckError) {
+      console.error('Error checking existing email:', emailCheckError);
+      // Fall back to direct queries if RPC fails
+      const { data: existingManager } = await supabaseAdmin
+        .from('apartment_managers')
+        .select('email')
+        .ilike('email', normalizedEmail)
+        .maybeSingle();
+      
+      const { data: existingTenant } = await supabaseAdmin
+        .from('tenants')
+        .select('email')
+        .ilike('email', normalizedEmail)
+        .maybeSingle();
 
-    if (existingManager) {
-      return res.status(400).json({
-        error: `Apartment manager with email ${email} already exists`,
-        hint: 'Please use a different email address or update the existing manager'
-      });
-    }
+      if (existingManager) {
+        return res.status(400).json({
+          error: `Apartment manager with email ${email} already exists`,
+          hint: `Found existing email: ${existingManager.email}. Please use a different email address.`,
+          existing_email: existingManager.email
+        });
+      }
 
-    // Also check if email exists in tenants table (case-insensitive)
-    const { data: existingTenant, error: checkTenantError } = await supabaseAdmin
-      .from('tenants')
-      .select('tenant_id, email')
-      .ilike('email', normalizedEmail)
-      .maybeSingle();
+      if (existingTenant) {
+        return res.status(400).json({
+          error: `Email ${email} is already registered as a tenant`,
+          hint: `Found existing email: ${existingTenant.email}. Please use a different email address.`,
+          existing_email: existingTenant.email
+        });
+      }
+    } else if (emailCheck) {
+      // Check results from database function
+      if (emailCheck.exists_in_managers || emailCheck.manager_email) {
+        return res.status(400).json({
+          error: `Apartment manager with email ${email} already exists`,
+          hint: `Found existing email: ${emailCheck.manager_email || email}. Please use a different email address.`,
+          existing_email: emailCheck.manager_email || email
+        });
+      }
 
-    if (checkTenantError && checkTenantError.code !== 'PGRST116') {
-      console.error('Error checking existing tenant:', checkTenantError);
-      return res.status(500).json({
-        error: 'Failed to check if email already exists in tenants',
-        details: checkTenantError.message
-      });
-    }
-
-    if (existingTenant) {
-      return res.status(400).json({
-        error: `Email ${email} is already registered as a tenant`,
-        hint: 'Please use a different email address. This email is already associated with a tenant account.'
-      });
+      if (emailCheck.exists_in_tenants || emailCheck.tenant_email) {
+        return res.status(400).json({
+          error: `Email ${email} is already registered as a tenant`,
+          hint: `Found existing email: ${emailCheck.tenant_email || email}. Please use a different email address.`,
+          existing_email: emailCheck.tenant_email || email
+        });
+      }
     }
 
     // Get SITE_URL for redirect
@@ -130,10 +142,25 @@ export default async function handler(req: any, res: any) {
     // Following EMAIL_PASSWORD_SETUP_GUIDE.md: redirect to callback route first
     const redirectTo = `${SITE_URL}/auth/callback`;
 
+    // Double-check email doesn't exist right before creating user (race condition protection)
+    const { data: lastMinuteCheck } = await supabaseAdmin
+      .from('apartment_managers')
+      .select('email')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+    
+    if (lastMinuteCheck) {
+      return res.status(400).json({
+        error: `Email ${email} was just registered. Please refresh and try again.`,
+        hint: 'This may be due to a concurrent request. Please wait a moment and try again.',
+        existing_email: lastMinuteCheck.email
+      });
+    }
+
     // Use Supabase's inviteUserByEmail (automatically sends invitation email)
-    console.log('Inviting apartment manager with Supabase inviteUserByEmail:', email);
+    console.log('Inviting apartment manager with Supabase inviteUserByEmail:', normalizedEmail);
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      email,
+      normalizedEmail, // Use normalized email for consistency
       {
         data: {
           name: `${first_name} ${last_name}`,
@@ -150,8 +177,8 @@ export default async function handler(req: any, res: any) {
       
       // Provide more specific error messages
       let errorMessage = `Failed to create user: ${userError.message}`;
-      if (userError.message?.includes('already registered')) {
-        errorMessage = `User with email ${email} already exists. Please use a different email.`;
+      if (userError.message?.includes('already registered') || userError.message?.includes('User already registered')) {
+        errorMessage = `User with email ${email} already exists in the system. Please use a different email.`;
       } else if (userError.message?.includes('Invalid email')) {
         errorMessage = `Invalid email address: ${email}`;
       }
@@ -191,14 +218,27 @@ export default async function handler(req: any, res: any) {
       
       // Provide more specific error message for duplicate email
       let errorMessage = `Failed to create apartment manager record: ${managerError.message}`;
-      if (managerError.message?.includes('duplicate key') || managerError.message?.includes('unique constraint') || managerError.message?.includes('landlords_email_key')) {
-        errorMessage = `Email ${email} is already registered. Please use a different email address.`;
+      if (managerError.message?.includes('duplicate key') || 
+          managerError.message?.includes('unique constraint') || 
+          managerError.message?.includes('landlords_email_key') ||
+          managerError.code === '23505') {
+        
+        // Try to find the existing email with different casing
+        const { data: existingEmail } = await supabaseAdmin
+          .from('apartment_managers')
+          .select('email')
+          .ilike('email', normalizedEmail)
+          .limit(1)
+          .single();
+        
+        errorMessage = `Email ${email} is already registered${existingEmail?.email ? ` (found as: ${existingEmail.email})` : ''}. Please use a different email address.`;
       }
       
       return res.status(400).json({ 
         error: errorMessage,
         details: managerError.message,
-        code: managerError.code
+        code: managerError.code,
+        hint: 'This error usually occurs when an email with different casing already exists in the database.'
       });
     }
 
