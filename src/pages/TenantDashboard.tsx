@@ -176,7 +176,7 @@ const TenantDashboard = () => {
   const [maintenanceLoadingData, setMaintenanceLoadingData] = useState(false);
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
-  const { logout, user } = useAuth();
+  const { logout, user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -202,6 +202,7 @@ const TenantDashboard = () => {
         if (error.code === 'PGRST116') {
           console.log('No tenant record found, creating one...');
           await createTenantRecord();
+          setLoading(false); // Ensure loading is set to false after creating record
           return;
         }
 
@@ -210,6 +211,7 @@ const TenantDashboard = () => {
           description: `Failed to load tenant data: ${error.message}`,
           variant: "destructive"
         });
+        setLoading(false); // Ensure loading is set to false on error
         return;
       }
 
@@ -261,7 +263,10 @@ const TenantDashboard = () => {
 
   // Create tenant record for existing users
   const createTenantRecord = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase
@@ -281,6 +286,8 @@ const TenantDashboard = () => {
 
       if (error) {
         console.error('Error creating tenant record:', error);
+        setLoading(false);
+        setIsLoadingProfile(false);
         toast({
           title: "Error",
           description: `Failed to create tenant record: ${error.message}`,
@@ -294,13 +301,17 @@ const TenantDashboard = () => {
         setIsLoadingProfile(false);
         // Try to fetch contract data after creating tenant record
         await fetchContractData(data.tenant_id);
+        setLoading(false); // Ensure loading is set to false after successful creation
         toast({
           title: "Success",
           description: "Tenant profile created successfully!",
         });
+      } else {
+        setLoading(false);
       }
     } catch (error) {
       console.error('Error creating tenant record:', error);
+      setLoading(false);
       setIsLoadingProfile(false);
       toast({
         title: "Error",
@@ -371,10 +382,18 @@ const TenantDashboard = () => {
 
   // Load tenant data when component mounts
   useEffect(() => {
+    // Wait for auth to finish loading
+    if (authLoading) {
+      return;
+    }
+    
     if (user) {
       fetchTenantData();
+    } else {
+      // If no user after auth loading is complete, stop loading
+      setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   // Load maintenance requests and payments when tenant data is available
   useEffect(() => {
@@ -1417,12 +1436,24 @@ const TenantDashboard = () => {
       )}
 
       {/* Show loading state */}
-      {loading && (
+      {(loading || authLoading) && (
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
               <p className="text-gray-600">Loading dashboard...</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Show message if not authenticated */}
+      {!authLoading && !user && !loading && (
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <p className="text-gray-600 mb-4">Please log in to access your dashboard.</p>
+              <Button onClick={() => navigate('/')}>Go to Login</Button>
             </div>
           </div>
         </div>
