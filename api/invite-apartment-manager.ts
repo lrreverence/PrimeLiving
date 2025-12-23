@@ -158,14 +158,26 @@ export default async function handler(req: any, res: any) {
     }
 
     // Check if auth user already exists before inviting
-    const { data: existingAuthUser } = await supabaseAdmin.auth.admin.getUserByEmail(normalizedEmail);
+    // Try to get user by email (this method may not exist in all Supabase versions)
+    let existingAuthUser = null;
+    try {
+      const result = await supabaseAdmin.auth.admin.listUsers();
+      if (result.data?.users) {
+        existingAuthUser = result.data.users.find(u => 
+          u.email && u.email.toLowerCase().trim() === normalizedEmail
+        );
+      }
+    } catch (error) {
+      // If listUsers fails or doesn't exist, we'll handle it in the inviteUserByEmail error
+      console.log('Could not check for existing auth user, will handle in inviteUserByEmail:', error);
+    }
     
-    if (existingAuthUser?.user) {
+    if (existingAuthUser) {
       // Check if this user already has an apartment_manager record
       const { data: existingManagerForUser } = await supabaseAdmin
         .from('apartment_managers')
         .select('email, apartment_manager_id')
-        .eq('user_id', existingAuthUser.user.id)
+        .eq('user_id', existingAuthUser.id)
         .maybeSingle();
       
       if (existingManagerForUser) {
@@ -179,8 +191,8 @@ export default async function handler(req: any, res: any) {
       // User exists in auth but not in apartment_managers - this is an orphaned user
       // We should delete it and create a new one, or we could reuse it
       // For safety, let's delete the orphaned user and create fresh
-      console.log('Found orphaned auth user, cleaning up:', existingAuthUser.user.id);
-      await supabaseAdmin.auth.admin.deleteUser(existingAuthUser.user.id);
+      console.log('Found orphaned auth user, cleaning up:', existingAuthUser.id);
+      await supabaseAdmin.auth.admin.deleteUser(existingAuthUser.id);
     }
 
     // Use Supabase's inviteUserByEmail (automatically sends invitation email)
