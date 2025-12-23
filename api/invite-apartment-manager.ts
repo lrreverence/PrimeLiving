@@ -157,6 +157,32 @@ export default async function handler(req: any, res: any) {
       });
     }
 
+    // Check if auth user already exists before inviting
+    const { data: existingAuthUser } = await supabaseAdmin.auth.admin.getUserByEmail(normalizedEmail);
+    
+    if (existingAuthUser?.user) {
+      // Check if this user already has an apartment_manager record
+      const { data: existingManagerForUser } = await supabaseAdmin
+        .from('apartment_managers')
+        .select('email, apartment_manager_id')
+        .eq('user_id', existingAuthUser.user.id)
+        .maybeSingle();
+      
+      if (existingManagerForUser) {
+        return res.status(400).json({
+          error: `Email ${email} is already registered as an apartment manager`,
+          hint: 'This email is already associated with an apartment manager account.',
+          existing_email: existingManagerForUser.email
+        });
+      }
+      
+      // User exists in auth but not in apartment_managers - this is an orphaned user
+      // We should delete it and create a new one, or we could reuse it
+      // For safety, let's delete the orphaned user and create fresh
+      console.log('Found orphaned auth user, cleaning up:', existingAuthUser.user.id);
+      await supabaseAdmin.auth.admin.deleteUser(existingAuthUser.user.id);
+    }
+
     // Use Supabase's inviteUserByEmail (automatically sends invitation email)
     console.log('Inviting apartment manager with Supabase inviteUserByEmail:', normalizedEmail);
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
@@ -193,6 +219,24 @@ export default async function handler(req: any, res: any) {
     if (!userData.user) {
       return res.status(500).json({ 
         error: 'Failed to create user: No user data returned' 
+      });
+    }
+
+    // Final check right before insert (race condition protection)
+    const { data: finalCheck } = await supabaseAdmin
+      .from('apartment_managers')
+      .select('email, apartment_manager_id')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+    
+    if (finalCheck) {
+      // Clean up the auth user we just created
+      await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
+      return res.status(400).json({
+        error: `Email ${email} was just registered by another request`,
+        hint: 'This may be due to a concurrent request. Please refresh and try again.',
+        existing_email: finalCheck.email,
+        existing_id: finalCheck.apartment_manager_id
       });
     }
 
