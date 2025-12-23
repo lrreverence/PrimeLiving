@@ -59,7 +59,7 @@ export const useApartmentManagerData = () => {
   };
 
   // Fetch tenants filtered by branch
-  const fetchTenants = async () => {
+  const fetchTenants = useCallback(async () => {
     if (!apartmentManagerData?.branch) {
       console.log('No apartment manager branch found');
       return;
@@ -101,10 +101,10 @@ export const useApartmentManagerData = () => {
     } finally {
       setTenantsLoading(false);
     }
-  };
+  }, [apartmentManagerData?.branch, toast]);
 
   // Fetch payments for tenants in the same branch
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     if (!apartmentManagerData?.branch) {
       console.log('No landlord branch found for payments');
       return;
@@ -163,10 +163,10 @@ export const useApartmentManagerData = () => {
     } finally {
       setPaymentsLoading(false);
     }
-  };
+  }, [apartmentManagerData?.branch, tenants, toast]);
 
   // Fetch documents from database
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     if (!apartmentManagerData?.branch) {
       console.log('No landlord branch found for documents');
       return;
@@ -211,10 +211,10 @@ export const useApartmentManagerData = () => {
     } finally {
       setDocumentsLoading(false);
     }
-  };
+  }, [apartmentManagerData?.branch, toast]);
 
   // Fetch units and calculate statistics
-  const fetchUnits = async () => {
+  const fetchUnits = useCallback(async () => {
     if (!apartmentManagerData?.branch) {
       console.log('No landlord branch found for units');
       return;
@@ -335,7 +335,7 @@ export const useApartmentManagerData = () => {
     } finally {
       setUnitsLoading(false);
     }
-  };
+  }, [apartmentManagerData?.branch, apartmentManagerData?.apartment_manager_id, tenants, toast]);
 
   // Load landlord data when component mounts
   useEffect(() => {
@@ -349,21 +349,21 @@ export const useApartmentManagerData = () => {
     if (apartmentManagerData?.branch) {
       fetchTenants();
     }
-  }, [apartmentManagerData]);
+  }, [apartmentManagerData?.branch, fetchTenants]);
 
-  // Load payments when tenants are available
+  // Load payments when tenants are available (use length to avoid infinite loops)
   useEffect(() => {
-    if (tenants.length > 0) {
+    if (tenants.length > 0 && apartmentManagerData?.branch) {
       fetchPayments();
     }
-  }, [tenants]);
+  }, [tenants.length, apartmentManagerData?.branch, fetchPayments]);
 
   // Load documents when landlord data is available
   useEffect(() => {
     if (apartmentManagerData?.branch) {
       fetchDocuments();
     }
-  }, [apartmentManagerData]);
+  }, [apartmentManagerData?.branch, fetchDocuments]);
 
   // Helper function to format time ago
   const formatTimeAgo = (date: Date): string => {
@@ -448,7 +448,7 @@ export const useApartmentManagerData = () => {
     if (apartmentManagerData?.branch && tenants.length >= 0) {
       fetchUnits();
     }
-  }, [apartmentManagerData, tenants]);
+  }, [apartmentManagerData?.branch, tenants.length, fetchUnits]);
 
   // Load maintenance requests when landlord data is available
   useEffect(() => {
@@ -458,7 +458,7 @@ export const useApartmentManagerData = () => {
   }, [apartmentManagerData, fetchMaintenanceRequests]);
 
   // Fetch recent activity (payments, maintenance requests, expiring contracts)
-  const fetchRecentActivity = async () => {
+  const fetchRecentActivity = useCallback(async () => {
     if (!apartmentManagerData?.branch || tenants.length === 0) {
       return;
     }
@@ -616,14 +616,14 @@ export const useApartmentManagerData = () => {
     } finally {
       setRecentActivityLoading(false);
     }
-  };
+  }, [apartmentManagerData?.branch, tenants, toast]);
 
   // Load recent activity when tenants and payments are available
   useEffect(() => {
     if (tenants.length > 0 && apartmentManagerData?.branch) {
       fetchRecentActivity();
     }
-  }, [tenants, payments, apartmentManagerData]);
+  }, [tenants.length, apartmentManagerData?.branch, fetchRecentActivity]);
 
   return {
     apartmentManagerData,
