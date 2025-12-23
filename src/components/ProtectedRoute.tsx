@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { getUserRole } from '@/lib/userRole';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -15,47 +16,63 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
+  const [roleCheck, setRoleCheck] = useState<{
+    role: 'super_admin' | 'apartment_manager' | 'tenant' | null;
+    loading: boolean;
+  }>({ role: null, loading: true });
 
+  // Check user role when user or requiredRole changes
   useEffect(() => {
-    if (!isLoading && user && requiredRole) {
-      const userRole = user.user_metadata?.role;
-      const uiRole = user.user_metadata?.uiRole;
+    const checkRole = async () => {
+      if (isLoading) {
+        return;
+      }
+
+      if (!user) {
+        setRoleCheck({ role: null, loading: false });
+        return;
+      }
+
+      if (!requiredRole) {
+        setRoleCheck({ role: null, loading: false });
+        return;
+      }
+
+      const actualRole = await getUserRole(user);
+      setRoleCheck({ role: actualRole, loading: false });
       
       // Super admins should always go to their own dashboard
-      if (uiRole === 'super_admin' || userRole === 'super_admin') {
-        if (requiredRole !== 'super_admin') {
-          navigate('/super-admin-dashboard');
-          return;
-        }
+      if (actualRole === 'super_admin' && requiredRole !== 'super_admin') {
+        navigate('/super-admin-dashboard');
+        return;
       }
       
-      // Check both database role and UI role
-      const hasCorrectRole = 
-        userRole === requiredRole || 
-        uiRole === requiredRole;
+      // Check if user has the correct role
+      const hasCorrectRole = actualRole === requiredRole;
 
-      // Only redirect if user has wrong role, don't redirect if no user (let them see login)
+      // Only redirect if user has wrong role
       if (!hasCorrectRole) {
         // Redirect to appropriate dashboard based on user's actual role
-        if (uiRole === 'super_admin' || userRole === 'super_admin') {
+        if (actualRole === 'super_admin') {
           navigate('/super-admin-dashboard');
-        } else if (uiRole === 'apartment_manager' || userRole === 'apartment_manager') {
+        } else if (actualRole === 'apartment_manager') {
           navigate('/apartment-manager-dashboard');
-        } else if (uiRole === 'tenant' || userRole === 'tenant') {
+        } else if (actualRole === 'tenant') {
           navigate('/tenant-dashboard');
         } else {
           // If no role is set and trying to access apartment manager dashboard, redirect to tenant
           if (requiredRole === 'apartment_manager') {
             navigate('/tenant-dashboard');
           }
-          // If trying to access tenant dashboard without role, allow it (handled in render)
         }
       }
-    }
+    };
+
+    checkRole();
   }, [user, isLoading, requiredRole, navigate, redirectTo]);
 
-  // Show loading while checking auth
-  if (isLoading) {
+  // Show loading while checking auth or role
+  if (isLoading || roleCheck.loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
@@ -73,25 +90,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <>{children}</>;
   }
 
-  const userRole = user.user_metadata?.role;
-  const uiRole = user.user_metadata?.uiRole;
-  
   // Super admins should always go to their own dashboard
-  if (uiRole === 'super_admin' || userRole === 'super_admin') {
-    if (requiredRole !== 'super_admin') {
-      // Redirect to super admin dashboard
-      navigate('/super-admin-dashboard');
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-        </div>
-      );
-    }
+  if (roleCheck.role === 'super_admin' && requiredRole !== 'super_admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      </div>
+    );
   }
   
-  const hasCorrectRole = 
-    userRole === requiredRole || 
-    uiRole === requiredRole;
+  const hasCorrectRole = roleCheck.role === requiredRole;
 
   // If user has correct role, allow access
   if (hasCorrectRole) {
@@ -99,7 +107,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // If no role is set and trying to access tenant dashboard, allow access
-  if (requiredRole === 'tenant' && !userRole && !uiRole) {
+  if (requiredRole === 'tenant' && !roleCheck.role) {
     return <>{children}</>;
   }
 
