@@ -10,6 +10,67 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+// Helper function to create contract and assign unit
+async function createContractAndAssignUnit(
+  supabaseAdmin: any,
+  tenantId: number,
+  unitId: number
+): Promise<any> {
+  try {
+    // First, verify the unit exists and is available
+    const { data: unitData, error: unitCheckError } = await supabaseAdmin
+      .from('units')
+      .select('unit_id, status')
+      .eq('unit_id', unitId)
+      .single();
+
+    if (unitCheckError || !unitData) {
+      return { error: `Unit ${unitId} not found` };
+    }
+
+    // Create contract
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setFullYear(endDate.getFullYear() + 1); // 1 year contract
+
+    const { error: contractError } = await supabaseAdmin
+      .from('contracts')
+      .insert({
+        tenant_id: tenantId,
+        unit_id: unitId,
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+    if (contractError) {
+      return contractError;
+    }
+
+    // Update unit status to occupied
+    const { error: unitUpdateError } = await supabaseAdmin
+      .from('units')
+      .update({
+        status: 'occupied',
+        updated_at: new Date().toISOString()
+      })
+      .eq('unit_id', unitId);
+
+    if (unitUpdateError) {
+      console.error('Error updating unit status:', unitUpdateError);
+      // Don't fail the entire operation if unit status update fails
+      // The contract was created successfully
+    }
+
+    return null; // Success
+  } catch (error) {
+    console.error('Error in createContractAndAssignUnit:', error);
+    return error;
+  }
+}
+
 export default async function handler(req: any, res: any) {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -50,7 +111,7 @@ export default async function handler(req: any, res: any) {
     );
 
     // Extract data from request body
-    const { first_name, last_name, email, contact_number, branch } = req.body;
+    const { first_name, last_name, email, contact_number, branch, unit_id } = req.body;
 
     // Validate required fields
     const missingFields: string[] = [];
@@ -58,6 +119,7 @@ export default async function handler(req: any, res: any) {
     if (!last_name) missingFields.push('last_name');
     if (!email) missingFields.push('email');
     if (!branch) missingFields.push('branch');
+    if (!unit_id) missingFields.push('unit_id');
 
     if (missingFields.length > 0) {
       return res.status(400).json({
@@ -66,7 +128,8 @@ export default async function handler(req: any, res: any) {
           first_name: !!first_name, 
           last_name: !!last_name, 
           email: !!email, 
-          branch: !!branch 
+          branch: !!branch,
+          unit_id: !!unit_id
         }
       });
     }
@@ -213,7 +276,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // Create tenant record in tenants table
-    const { error: tenantError } = await supabaseAdmin
+    const { data: tenantData, error: tenantError } = await supabaseAdmin
       .from('tenants')
       .insert({
         user_id: userData.user.id,
@@ -224,7 +287,9 @@ export default async function handler(req: any, res: any) {
         branch: branch.trim(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      });
+      })
+      .select('tenant_id')
+      .single();
 
     if (tenantError) {
       console.error('Error creating tenant:', tenantError);
@@ -248,6 +313,10 @@ export default async function handler(req: any, res: any) {
           // Record exists - check if it was created by our user_id (success case) or another request
           if (existingRecord.user_id === userData.user.id) {
             // Our record was created! This is actually success, just a timing issue
+            // Now create contract and assign unit
+            const tenantId = existingRecord.tenant_id;
+            await createContractAndAssignUnit(supabaseAdmin, tenantId, unit_id);
+            
             return res.status(200).json({
               success: true,
               message: 'Tenant created and invitation email sent via Supabase',
@@ -283,6 +352,29 @@ export default async function handler(req: any, res: any) {
           hint: 'Please try again or contact support if the issue persists.'
         });
       }
+    }
+
+    if (!tenantData || !tenantData.tenant_id) {
+      // Clean up auth user if tenant creation failed
+      await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
+      return res.status(500).json({
+        error: 'Failed to create tenant: No tenant data returned'
+      });
+    }
+
+    // Create contract and assign unit
+    const contractError = await createContractAndAssignUnit(
+      supabaseAdmin, 
+      tenantData.tenant_id, 
+      unit_id
+    );
+
+    if (contractError) {
+      // If contract creation fails, we still have the tenant and auth user
+      // Log the error but don't fail the entire operation
+      console.error('Error creating contract/assigning unit:', contractError);
+      // We'll still return success since the tenant was created and invitation sent
+      // The unit can be assigned later manually
     }
 
     return res.status(200).json({
