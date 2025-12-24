@@ -10,6 +10,7 @@ import { Search, Plus, Edit, Eye, Trash2, IdCard, X, Download, FileText, User, M
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
+import { UploadValidId } from '@/components/UploadValidId';
 
 interface Tenant {
   id: number;
