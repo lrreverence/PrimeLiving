@@ -597,6 +597,89 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
     }
   };
 
+  const handleDownloadTenantRecords = () => {
+    try {
+      // Create CSV content
+      const csvRows: string[] = [];
+      
+      // Add header
+      csvRows.push('Tenant Records - Generated: ' + new Date().toLocaleString());
+      csvRows.push('');
+      
+      // Add CSV headers
+      csvRows.push([
+        'Name',
+        'Email',
+        'Contact Number',
+        'Unit',
+        'Monthly Rent',
+        'Contract Start',
+        'Contract End',
+        'Status',
+        'Overdue Balance',
+        'Valid ID Uploaded',
+        'Emergency Contact Name',
+        'Emergency Contact Phone',
+        'Emergency Contact Relationship',
+        'Occupation',
+        'Company',
+        'Move-in Date'
+      ].join(','));
+      
+      // Add tenant data
+      filteredTenants.forEach((tenant) => {
+        const tenantData = tenant.tenantData || {};
+        const validIdStatus = tenant.validIdUrl ? 'Yes' : 'No';
+        const validIdDate = tenant.validIdUploadedAt 
+          ? new Date(tenant.validIdUploadedAt).toLocaleDateString() 
+          : '';
+        
+        csvRows.push([
+          `"${tenant.name}"`,
+          tenant.email || '',
+          tenant.contact !== 'N/A' ? tenant.contact : '',
+          tenant.unit !== 'N/A' ? tenant.unit : '',
+          tenant.monthlyRent > 0 ? `₱${tenant.monthlyRent.toLocaleString()}` : '',
+          tenant.contractStart !== 'N/A' ? tenant.contractStart : '',
+          tenant.contractEnd !== 'N/A' ? tenant.contractEnd : '',
+          tenant.status || '',
+          `₱${tenant.balance.toLocaleString()}`,
+          validIdStatus + (validIdDate ? ` (${validIdDate})` : ''),
+          tenantData.emergency_contact_name || '',
+          tenantData.emergency_contact_phone || '',
+          tenantData.emergency_contact_relationship || '',
+          tenantData.occupation || '',
+          tenantData.company || '',
+          tenantData.move_in_date ? new Date(tenantData.move_in_date).toLocaleDateString() : ''
+        ].join(','));
+      });
+      
+      // Create and download CSV
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `tenant-records-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Download Successful",
+        description: "Tenant records have been downloaded successfully.",
+      });
+    } catch (error) {
+      console.error('Error generating tenant records:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate tenant records. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleViewId = async (tenant: Tenant) => {
     setSelectedTenant(tenant);
     setViewIdModalOpen(true);
@@ -704,6 +787,15 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
               <CardTitle>Active Tenants</CardTitle>
               <p className="text-sm text-gray-600 mt-1">Current tenant list and contract information.</p>
             </div>
+            <Button
+              variant="outline"
+              onClick={handleDownloadTenantRecords}
+              className="flex items-center space-x-2"
+              disabled={tenantsLoading || filteredTenants.length === 0}
+            >
+              <Download className="w-4 h-4" />
+              <span>Download Tenant Records</span>
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -1021,7 +1113,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          {tenant.validIdUrl ? (
+                          {tenant.validIdUrl && (
                             <Button 
                               variant="ghost" 
                               size="sm" 
@@ -1031,20 +1123,19 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                             >
                               <IdCard className="w-4 h-4" />
                             </Button>
-                          ) : (
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700"
-                              onClick={() => {
-                                setSelectedTenant(tenant);
-                                setUploadIdModalOpen(true);
-                              }}
-                              title="Upload Valid ID"
-                            >
-                              <Upload className="w-4 h-4" />
-                            </Button>
                           )}
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700"
+                            onClick={() => {
+                              setSelectedTenant(tenant);
+                              setUploadIdModalOpen(true);
+                            }}
+                            title={tenant.validIdUrl ? "Replace Valid ID" : "Upload Valid ID"}
+                          >
+                            <Upload className="w-4 h-4" />
+                          </Button>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-700">
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -1638,6 +1729,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
           {selectedTenant && (
             <UploadValidId
               tenantId={selectedTenant.id}
+              compact={true}
               onUploadSuccess={() => {
                 setUploadIdModalOpen(false);
                 if (onTenantUpdate) {

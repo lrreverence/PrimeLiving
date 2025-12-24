@@ -985,32 +985,7 @@ const ApartmentManagerDashboard = () => {
   }, [activeTab, notificationTab, apartmentManagerData]);
 
   // Overview data
-  const overviewMetrics = [
-    {
-      title: 'Total Units',
-      value: String(unitStats.total),
-      icon: <Building2 className="w-6 h-6" />,
-      color: 'text-blue-600'
-    },
-    {
-      title: 'Occupied Units',
-      value: String(unitStats.occupied),
-      icon: <Users className="w-6 h-6" />,
-      color: 'text-green-600'
-    },
-    {
-      title: 'Vacant Units',
-      value: String(unitStats.vacant),
-      icon: <Home className="w-6 h-6" />,
-      color: 'text-gray-600'
-    },
-    {
-      title: 'Pending Payments',
-      value: String(pendingCount),
-      icon: <CreditCard className="w-6 h-6" />,
-      color: 'text-orange-600'
-    }
-  ];
+  const overviewMetrics = [];
 
   // Generate report function
   const generateReport = () => {

@@ -68,6 +68,7 @@ import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import EmailConfirmationBanner from '@/components/EmailConfirmationBanner';
+import { TenantFAQChatbot } from '@/components/TenantFAQChatbot';
 import qrCodeImage from '@/assets/78eb38c8-0172-40a9-97a4-42fb95af07a9.jpeg';
 import {
   Building2,
@@ -4010,6 +4011,9 @@ const TenantDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* FAQ Chatbot */}
+      <TenantFAQChatbot />
     </div>
   );
 };

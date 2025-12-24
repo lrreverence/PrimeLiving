@@ -10,9 +10,10 @@ import { useToast } from '@/hooks/use-toast';
 interface UploadValidIdProps {
   tenantId: number;
   onUploadSuccess: () => void;
+  compact?: boolean; // For use in dialogs/modals
 }
 
-export const UploadValidId = ({ tenantId, onUploadSuccess }: UploadValidIdProps) => {
+export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false }: UploadValidIdProps) => {
   const [validIdFile, setValidIdFile] = useState<File | null>(null);
   const [validIdPreview, setValidIdPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -117,6 +118,107 @@ export const UploadValidId = ({ tenantId, onUploadSuccess }: UploadValidIdProps)
       setUploading(false);
     }
   };
+
+  if (compact) {
+    return (
+      <div className="space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="w-4 h-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="validId">
+            Upload Valid ID <span className="text-destructive">*</span>
+          </Label>
+          <div className="space-y-2">
+            {!validIdFile ? (
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                <input
+                  type="file"
+                  id="validId"
+                  accept="image/jpeg,image/jpg,image/png,application/pdf"
+                  onChange={handleValidIdChange}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="validId"
+                  className="cursor-pointer flex flex-col items-center space-y-2"
+                >
+                  <Upload className="w-8 h-8 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">
+                      Click to upload or drag and drop
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      JPG, PNG, or PDF (Max 5MB)
+                    </p>
+                  </div>
+                </label>
+              </div>
+            ) : (
+              <div className="border-2 border-gray-300 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <FileText className="w-6 h-6 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{validIdFile.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {(validIdFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={removeValidId}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                {validIdPreview && (
+                  <div className="mt-4">
+                    <img
+                      src={validIdPreview}
+                      alt="Valid ID preview"
+                      className="max-w-full h-48 object-contain rounded border mx-auto"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-gray-500">
+            Accepted: Driver's License, Passport, National ID, or any government-issued ID
+          </p>
+        </div>
+
+        <div className="flex justify-end space-x-2">
+          <Button
+            onClick={handleUpload}
+            disabled={!validIdFile || uploading}
+            className="bg-gray-900 text-white hover:bg-gray-800"
+          >
+            {uploading ? (
+              <>
+                <Upload className="w-4 h-4 mr-2 animate-pulse" />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Valid ID
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
