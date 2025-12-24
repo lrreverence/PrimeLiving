@@ -1035,11 +1035,14 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              className="h-8 w-8 p-0 text-gray-400 cursor-not-allowed"
-                              disabled
-                              title="No Valid ID uploaded"
+                              className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700"
+                              onClick={() => {
+                                setSelectedTenant(tenant);
+                                setUploadIdModalOpen(true);
+                              }}
+                              title="Upload Valid ID"
                             >
-                              <IdCard className="w-4 h-4" />
+                              <Upload className="w-4 h-4" />
                             </Button>
                           )}
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-700">
