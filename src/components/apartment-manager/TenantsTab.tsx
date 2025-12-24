@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Search, Plus, Edit, Eye, Trash2, IdCard, X, Download, FileText, User, Mail, Phone, MapPin, Calendar, Users, Briefcase, Building, Save, Upload } from 'lucide-react';
+import { Search, Plus, Edit, Eye, Trash2, IdCard, X, Download, FileText, User, Mail, Phone, MapPin, Calendar, Users, Briefcase, Building, Save, Upload, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -25,6 +25,8 @@ interface Tenant {
   balance: number;
   validIdUrl?: string;
   validIdUploadedAt?: string;
+  validIdVerified?: boolean;
+  validIdVerifiedAt?: string;
   tenantData?: any; // Full tenant data from database
 }
 
@@ -44,9 +46,10 @@ interface TenantsTabProps {
   units?: Unit[];
   onTenantUpdate?: () => void;
   apartmentManagerBranch?: string;
+  apartmentManagerId?: number;
 }
 
-export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange, units = [], onTenantUpdate, apartmentManagerBranch }: TenantsTabProps) => {
+export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange, units = [], onTenantUpdate, apartmentManagerBranch, apartmentManagerId }: TenantsTabProps) => {
   const { toast } = useToast();
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [viewIdModalOpen, setViewIdModalOpen] = useState(false);
@@ -680,6 +683,58 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
     }
   };
 
+  const [verifyingId, setVerifyingId] = useState<number | null>(null);
+
+  const handleVerifyId = async (tenantId: number, verify: boolean) => {
+    try {
+      setVerifyingId(tenantId);
+      
+      const { error } = await supabase
+        .from('tenants')
+        .update({
+          valid_id_verified: verify,
+          valid_id_verified_at: verify ? new Date().toISOString() : null,
+          valid_id_verified_by: verify ? (apartmentManagerId || null) : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('tenant_id', tenantId);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: verify ? "ID Verified" : "Verification Removed",
+        description: verify 
+          ? "Valid ID has been verified successfully." 
+          : "Verification has been removed.",
+      });
+
+      // Refresh tenant data
+      if (onTenantUpdate) {
+        onTenantUpdate();
+      }
+
+      // Update selected tenant if it's the same one
+      if (selectedTenant && selectedTenant.id === tenantId) {
+        setSelectedTenant({
+          ...selectedTenant,
+          validIdVerified: verify,
+          validIdVerifiedAt: verify ? new Date().toISOString() : undefined
+        });
+      }
+    } catch (error: any) {
+      console.error('Error verifying ID:', error);
+      toast({
+        title: "Error",
+        description: `Failed to ${verify ? 'verify' : 'unverify'} ID: ${error.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
   const handleViewId = async (tenant: Tenant) => {
     setSelectedTenant(tenant);
     setViewIdModalOpen(true);
@@ -1077,14 +1132,21 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                       </td>
                       <td className="py-4 px-4">
                         {tenant.validIdUrl ? (
-                          <Badge className="bg-green-100 text-green-800">
-                            <IdCard className="w-3 h-3 mr-1" />
-                            Verified
-                          </Badge>
+                          tenant.validIdVerified ? (
+                            <Badge className="bg-green-100 text-green-800">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Verified
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                              <IdCard className="w-3 h-3 mr-1" />
+                              Pending Verification
+                            </Badge>
+                          )
                         ) : (
-                          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
                             <IdCard className="w-3 h-3 mr-1" />
-                            Pending
+                            Not Uploaded
                           </Badge>
                         )}
                       </td>
@@ -1238,21 +1300,92 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                   </div>
                 )}
                 {signedUrl && (
-                  <div className="flex justify-end space-x-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        if (signedUrl) {
-                          window.open(signedUrl, '_blank');
-                        }
-                      }}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download
-                    </Button>
-                    <Button onClick={() => setViewIdModalOpen(false)}>
-                      Close
-                    </Button>
+                  <div className="space-y-4">
+                    {/* Verification Status */}
+                    <div className="bg-white rounded-lg border p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Verification Status</p>
+                          {selectedTenant?.validIdVerified ? (
+                            <div className="flex items-center space-x-2 mt-1">
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                              <span className="text-sm text-green-600">Verified</span>
+                              {selectedTenant.validIdVerifiedAt && (
+                                <span className="text-xs text-gray-500">
+                                  on {new Date(selectedTenant.validIdVerifiedAt).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center space-x-2 mt-1">
+                              <XCircle className="w-4 h-4 text-yellow-600" />
+                              <span className="text-sm text-yellow-600">Pending Verification</span>
+                            </div>
+                          )}
+                        </div>
+                        {selectedTenant && (
+                          <div className="flex space-x-2">
+                            {selectedTenant.validIdVerified ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleVerifyId(selectedTenant.id, false)}
+                                disabled={verifyingId === selectedTenant.id}
+                                className="text-red-600 border-red-200 hover:bg-red-50"
+                              >
+                                {verifyingId === selectedTenant.id ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-2"></div>
+                                    Removing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Remove Verification
+                                  </>
+                                )}
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() => handleVerifyId(selectedTenant.id, true)}
+                                disabled={verifyingId === selectedTenant.id}
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                              >
+                                {verifyingId === selectedTenant.id ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                                    Verifying...
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle className="w-4 h-4 mr-2" />
+                                    Verify ID
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {/* Action Buttons */}
+                    <div className="flex justify-end space-x-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          if (signedUrl) {
+                            window.open(signedUrl, '_blank');
+                          }
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download
+                      </Button>
+                      <Button onClick={() => setViewIdModalOpen(false)}>
+                        Close
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1474,16 +1607,35 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
                       <div className="flex-1">
                         <p className="text-sm text-gray-600">ID Verification</p>
                         {selectedTenant.validIdUrl ? (
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Badge className="bg-green-100 text-green-800">Verified</Badge>
+                          <div className="space-y-2 mt-1">
+                            <div className="flex items-center space-x-2">
+                              {selectedTenant.validIdVerified ? (
+                                <Badge className="bg-green-100 text-green-800">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Verified
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                                  <IdCard className="w-3 h-3 mr-1" />
+                                  Pending Verification
+                                </Badge>
+                              )}
+                            </div>
                             {selectedTenant.validIdUploadedAt && (
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-gray-500 block">
                                 Uploaded: {new Date(selectedTenant.validIdUploadedAt).toLocaleDateString()}
+                              </span>
+                            )}
+                            {selectedTenant.validIdVerifiedAt && (
+                              <span className="text-xs text-gray-500 block">
+                                Verified: {new Date(selectedTenant.validIdVerifiedAt).toLocaleDateString()}
                               </span>
                             )}
                           </div>
                         ) : (
-                          <Badge className="bg-yellow-100 text-yellow-800 mt-1">Pending</Badge>
+                          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 mt-1">
+                            Not Uploaded
+                          </Badge>
                         )}
                       </div>
                     </div>
