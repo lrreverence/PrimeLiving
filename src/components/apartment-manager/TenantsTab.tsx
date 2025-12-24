@@ -1625,6 +1625,29 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Upload Valid ID Dialog */}
+      <Dialog open={uploadIdModalOpen} onOpenChange={setUploadIdModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Upload Valid ID for {selectedTenant?.name}</DialogTitle>
+            <DialogDescription>
+              Upload a valid ID document for this tenant. Accepted formats: JPG, PNG, or PDF (Max 5MB).
+            </DialogDescription>
+          </DialogHeader>
+          {selectedTenant && (
+            <UploadValidId
+              tenantId={selectedTenant.id}
+              onUploadSuccess={() => {
+                setUploadIdModalOpen(false);
+                if (onTenantUpdate) {
+                  onTenantUpdate();
+                }
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
