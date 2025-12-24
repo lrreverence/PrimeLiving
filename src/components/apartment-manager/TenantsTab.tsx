@@ -1882,6 +1882,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
             <UploadValidId
               tenantId={selectedTenant.id}
               compact={true}
+              apartmentManagerId={apartmentManagerId}
               onUploadSuccess={() => {
                 setUploadIdModalOpen(false);
                 if (onTenantUpdate) {

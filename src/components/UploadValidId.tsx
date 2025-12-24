@@ -11,9 +11,10 @@ interface UploadValidIdProps {
   tenantId: number;
   onUploadSuccess: () => void;
   compact?: boolean; // For use in dialogs/modals
+  apartmentManagerId?: number; // For automatic verification
 }
 
-export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false }: UploadValidIdProps) => {
+export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false, apartmentManagerId }: UploadValidIdProps) => {
   const [validIdFile, setValidIdFile] = useState<File | null>(null);
   const [validIdPreview, setValidIdPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -91,12 +92,22 @@ export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false }: Up
       const validIdUrl = urlData.publicUrl;
 
       // Update tenant record with valid ID URL
+      // If uploaded by apartment manager, automatically verify it
+      const updateData: any = {
+        valid_id_url: validIdUrl,
+        valid_id_uploaded_at: new Date().toISOString()
+      };
+
+      // Auto-verify if uploaded by apartment manager
+      if (apartmentManagerId) {
+        updateData.valid_id_verified = true;
+        updateData.valid_id_verified_at = new Date().toISOString();
+        updateData.valid_id_verified_by = apartmentManagerId;
+      }
+
       const { error: updateError } = await supabase
         .from('tenants')
-        .update({
-          valid_id_url: validIdUrl,
-          valid_id_uploaded_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('tenant_id', tenantId);
 
       if (updateError) {
@@ -108,7 +119,9 @@ export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false }: Up
 
       toast({
         title: "Valid ID Uploaded",
-        description: "Valid ID has been uploaded successfully.",
+        description: apartmentManagerId 
+          ? "Valid ID has been uploaded and verified successfully." 
+          : "Valid ID has been uploaded successfully.",
       });
 
       onUploadSuccess();
