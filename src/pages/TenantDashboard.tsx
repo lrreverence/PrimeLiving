@@ -668,38 +668,6 @@ const TenantDashboard = () => {
     return expectedTotal - confirmedPayments;
   };
 
-  // Calculate contract progress
-  const calculateContractProgress = () => {
-    if (!contractData?.start_date || !contractData?.end_date) return 0;
-    
-    // Normalize dates to start of day to avoid time component issues
-    const startDate = new Date(contractData.start_date);
-    startDate.setHours(0, 0, 0, 0);
-    
-    const endDate = new Date(contractData.end_date);
-    endDate.setHours(0, 0, 0, 0);
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // If contract hasn't started yet, return 0
-    if (today < startDate) return 0;
-    
-    // If contract has ended, return 100
-    if (today >= endDate) return 100;
-    
-    // Calculate total contract duration in days
-    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    
-    // Calculate elapsed days from start to today
-    const elapsedDays = Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    
-    // Calculate progress percentage
-    const progress = (elapsedDays / totalDays) * 100;
-    
-    // Ensure it's between 0 and 100
-    return Math.max(0, Math.min(progress, 100));
-  };
 
   // Filter payments based on year and status
   const filteredPayments = payments.filter((payment) => {
