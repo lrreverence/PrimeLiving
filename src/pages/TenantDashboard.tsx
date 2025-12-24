@@ -109,7 +109,8 @@ import {
   Settings as SettingsIcon,
   Mail as MailIcon,
   Smartphone as PhoneIcon,
-  Bell as BellIcon
+  Bell as BellIcon,
+  Lock
 } from 'lucide-react';
 
 const TenantDashboard = () => {
@@ -172,9 +173,18 @@ const TenantDashboard = () => {
     inProgress: 0,
     completed: 0
   });
+  const [feedbackText, setFeedbackText] = useState<{ [key: number]: string }>({});
+  const [submittingFeedback, setSubmittingFeedback] = useState<{ [key: number]: boolean }>({});
   const [maintenanceLoadingData, setMaintenanceLoadingData] = useState(false);
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [changePasswordDialogOpen, setChangePasswordDialogOpen] = useState(false);
+  const [changePasswordForm, setChangePasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [changingPassword, setChangingPassword] = useState(false);
   const { logout, user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -474,7 +484,7 @@ const TenantDashboard = () => {
       id: 'pay-rent',
       title: 'Pay Rent',
       icon: <QrCode className="w-6 h-6" />,
-      description: 'Generate QR code for payment'
+      description: 'Display QR code for payment'
     },
     {
       id: 'report-issue',
@@ -484,7 +494,7 @@ const TenantDashboard = () => {
     },
     {
       id: 'payment-history',
-      title: 'Payment History',
+      title: 'Transaction History',
       icon: <CreditCard className="w-6 h-6" />,
       description: 'View past payments'
     },
@@ -531,8 +541,8 @@ const TenantDashboard = () => {
       case 'payment-history':
         setActiveTab('payments');
         toast({
-          title: "Payment History",
-          description: "Redirected to payment history section.",
+          title: "Transaction History",
+          description: "Redirected to transaction history section.",
         });
         break;
       case 'view-alerts':
@@ -580,7 +590,7 @@ const TenantDashboard = () => {
         console.error('Error fetching payments:', error);
         toast({
           title: "Error",
-          description: "Failed to load payment history.",
+          description: "Failed to load transaction history.",
           variant: "destructive"
         });
         return;
@@ -593,7 +603,7 @@ const TenantDashboard = () => {
       console.error('Error fetching payments:', error);
       toast({
         title: "Error",
-        description: "Failed to load payment history. Please try again.",
+        description: "Failed to load transaction history. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -687,6 +697,10 @@ const TenantDashboard = () => {
       'July', 'August', 'September', 'October', 'November', 'December'];
     const period = `${monthNames[paymentDate.getMonth()]} ${paymentDate.getFullYear()}`;
     
+    // Default to Monthly Rent if payment_for is not available in database
+    // In the future, this could be stored in the database
+    const paymentFor = (payment as any).payment_for || 'Monthly Rent';
+    
     return {
       id: payment.payment_id,
       date: paymentDate.toISOString().split('T')[0],
@@ -697,6 +711,7 @@ const TenantDashboard = () => {
       status: (payment.status === 'confirmed' || payment.status === 'completed' || payment.status === 'paid') 
         ? 'confirmed' 
         : payment.status || 'pending',
+      payment_for: paymentFor,
       receipt_url: payment.receipt_url
     };
   });
@@ -1120,6 +1135,68 @@ const TenantDashboard = () => {
     }));
   };
 
+  const handleSubmitFeedback = async (requestId: number) => {
+    const feedback = feedbackText[requestId]?.trim();
+    if (!feedback) {
+      toast({
+        title: "Error",
+        description: "Please enter your feedback before submitting.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setSubmittingFeedback(prev => ({ ...prev, [requestId]: true }));
+      
+      const { data, error } = await supabase
+        .from('maintenance_requests')
+        .update({
+          tenant_feedback: feedback,
+          updated_at: new Date().toISOString()
+        })
+        .eq('request_id', requestId)
+        .select();
+
+      if (error) {
+        console.error('Supabase update error:', error);
+        throw new Error(error.message || 'Failed to save feedback to database');
+      }
+
+      if (!data || data.length === 0) {
+        throw new Error('No rows were updated. Please check if you have permission to update this request.');
+      }
+
+      toast({
+        title: "Feedback Submitted",
+        description: "Thank you for your feedback!",
+      });
+
+      // Clear feedback text for this request
+      setFeedbackText(prev => {
+        const newState = { ...prev };
+        delete newState[requestId];
+        return newState;
+      });
+
+      // Refresh maintenance requests to show the feedback
+      await fetchMaintenanceRequests();
+    } catch (error: any) {
+      console.error('Error submitting feedback:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit feedback. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmittingFeedback(prev => {
+        const newState = { ...prev };
+        delete newState[requestId];
+        return newState;
+      });
+    }
+  };
+
   const handleEditSubmit = async () => {
     if (!user || !tenantData) return;
 
@@ -1247,6 +1324,99 @@ const TenantDashboard = () => {
       title: "Settings Updated",
       description: `Notification ${setting.replace(/([A-Z])/g, ' $1').toLowerCase()} ${value ? 'enabled' : 'disabled'}.`,
     });
+  };
+
+  const handleChangePassword = async () => {
+    if (!user?.email) {
+      toast({
+        title: "Error",
+        description: "User email not found.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate form
+    if (!changePasswordForm.currentPassword || !changePasswordForm.newPassword || !changePasswordForm.confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (changePasswordForm.newPassword.length < 6) {
+      toast({
+        title: "Error",
+        description: "New password must be at least 6 characters long.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (changePasswordForm.newPassword !== changePasswordForm.confirmPassword) {
+      toast({
+        title: "Error",
+        description: "New passwords do not match.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (changePasswordForm.currentPassword === changePasswordForm.newPassword) {
+      toast({
+        title: "Error",
+        description: "New password must be different from current password.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setChangingPassword(true);
+
+    try {
+      // Verify current password by attempting to sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: changePasswordForm.currentPassword
+      });
+
+      if (signInError) {
+        throw new Error('Current password is incorrect.');
+      }
+
+      // Update to new password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: changePasswordForm.newPassword
+      });
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Reset form and close dialog
+      setChangePasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+      setChangePasswordDialogOpen(false);
+
+      toast({
+        title: "Password Changed",
+        description: "Your password has been successfully updated.",
+      });
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to change password. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   // Helper functions for notifications
@@ -2217,6 +2387,24 @@ const TenantDashboard = () => {
                         </div>
                         <Badge className="bg-gray-800 text-white">Enabled</Badge>
                       </div>
+
+                      {/* Change Password */}
+                      <div className="flex items-center justify-between pt-4 border-t">
+                        <div className="flex items-center space-x-3">
+                          <Lock className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="font-medium text-gray-900">Password</p>
+                            <p className="text-sm text-gray-600">Change your account password</p>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => setChangePasswordDialogOpen(true)}
+                          variant="outline"
+                          className="bg-white hover:bg-gray-50"
+                        >
+                          Change Password
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -2226,19 +2414,12 @@ const TenantDashboard = () => {
 
           <TabsContent value="payments">
             <div className="space-y-8">
-              {/* Payment History Header */}
+              {/* Transaction History Header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-3xl font-bold text-gray-900">Payment History</h2>
+                  <h2 className="text-3xl font-bold text-gray-900">Transaction History</h2>
                   <p className="text-gray-600 mt-1">View your payment records and download receipts</p>
                 </div>
-                <Button
-                  onClick={handleDownloadAll}
-                  className="bg-gray-800 text-white hover:bg-gray-700 flex items-center space-x-2"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download All</span>
-                </Button>
               </div>
 
               {/* Summary Cards */}
@@ -2345,9 +2526,9 @@ const TenantDashboard = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
                   <div>
                     <h3 className="text-2xl font-bold text-gray-900">Payment Records</h3>
-                    <p className="text-gray-600 mt-1">Filter and view your payment history</p>
+                    <p className="text-gray-600 mt-1">Filter and view your transaction history</p>
                   </div>
-                  <div className="flex space-x-4">
+                  <div className="flex space-x-4 items-center">
                     <Select value={paymentYear} onValueChange={setPaymentYear}>
                       <SelectTrigger className="w-32">
                         <SelectValue />
@@ -2371,6 +2552,13 @@ const TenantDashboard = () => {
                         <SelectItem value="Pending">Pending</SelectItem>
                       </SelectContent>
                     </Select>
+                    <Button
+                      onClick={handleDownloadAll}
+                      className="bg-gray-800 text-white hover:bg-gray-700 flex items-center space-x-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download All</span>
+                    </Button>
                   </div>
                 </div>
 
@@ -2386,14 +2574,14 @@ const TenantDashboard = () => {
                             <th className="text-left py-4 px-6 font-medium text-gray-700">Method</th>
                             <th className="text-left py-4 px-6 font-medium text-gray-700">Reference</th>
                             <th className="text-left py-4 px-6 font-medium text-gray-700">Status</th>
-                            <th className="text-left py-4 px-6 font-medium text-gray-700">Receipt</th>
+                            <th className="text-left py-4 px-6 font-medium text-gray-700">Payment For</th>
                           </tr>
                         </thead>
                         <tbody>
                           {paymentsLoading ? (
                             <tr>
                               <td colSpan={7} className="py-8 text-center text-gray-500">
-                                Loading payment history...
+                                Loading transaction history...
                               </td>
                             </tr>
                           ) : paymentRecords.length === 0 ? (
@@ -2420,15 +2608,8 @@ const TenantDashboard = () => {
                               <td className="py-4 px-6">
                                 {getStatusBadge(record.status)}
                               </td>
-                              <td className="py-4 px-6">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDownloadReceipt(record.id)}
-                                  className="p-2"
-                                >
-                                  <Receipt className="w-4 h-4" />
-                                </Button>
+                              <td className="py-4 px-6 text-sm text-gray-600">
+                                {record.payment_for || 'Monthly Rent'}
                               </td>
                             </tr>
                             ))
@@ -2440,102 +2621,7 @@ const TenantDashboard = () => {
                 </Card>
               </div>
 
-              {/* Payment Summary Section */}
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Payment Summary (2025)</h3>
-                <p className="text-gray-600 mb-6">Overview of your payment activity</p>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">Payments Made</p>
-                          <p className="text-3xl font-bold text-gray-900">5</p>
-                        </div>
-                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                          <CheckCircle className="w-6 h-6 text-green-600" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">Total Amount Paid</p>
-                          <p className="text-3xl font-bold text-gray-900">₱75,000</p>
-                        </div>
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <DollarSign className="w-6 h-6 text-blue-600" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">Average Payment</p>
-                          <p className="text-3xl font-bold text-gray-900">₱15,000</p>
-                        </div>
-                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <TrendingUp className="w-6 h-6 text-purple-600" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Payment Method Breakdown */}
-                <div className="mb-8">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Payment Method Breakdown</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                          <CreditCard className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <p className="text-sm font-medium text-gray-600">Gcash</p>
-                        <p className="text-2xl font-bold text-gray-900">60%</p>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                          <CreditCard className="w-6 h-6 text-gray-600" />
-                        </div>
-                        <p className="text-sm font-medium text-gray-600">Paymaya</p>
-                        <p className="text-2xl font-bold text-gray-900">0%</p>
-                      </CardContent>
-                    </Card>
-
-                    {/* <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                          <DollarSign className="w-6 h-6 text-green-600" />
-                        </div>
-                        <p className="text-sm font-medium text-gray-600">Cash</p>
-                        <p className="text-2xl font-bold text-gray-900">20%</p>
-                      </CardContent>
-                    </Card> */}
-
-                    {/* <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                          <Building2 className="w-6 h-6 text-purple-600" />
-                        </div>
-                        <p className="text-sm font-medium text-gray-600">Bank Transfer</p>
-                        <p className="text-2xl font-bold text-gray-900">20%</p>
-                      </CardContent>
-                    </Card> */}
-                  </div>
-                </div>
-
-                {/* Upcoming Payments */}
+              {/* Upcoming Payments */}
                 <div>
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">Upcoming Payments</h4>
                   <p className="text-gray-600 mb-6">Schedule and reminders for future payments</p>
@@ -2582,7 +2668,6 @@ const TenantDashboard = () => {
                     </Card>
                   </div>
                 </div>
-              </div>
             </div>
           </TabsContent>
 
@@ -2612,7 +2697,8 @@ const TenantDashboard = () => {
                         <SelectContent>
                           <SelectItem value="Monthly Rent">Monthly Rent</SelectItem>
                           <SelectItem value="Security Deposit">Security Deposit</SelectItem>
-                          <SelectItem value="Utilities">Utilities</SelectItem>
+                          <SelectItem value="Water">Water</SelectItem>
+                          <SelectItem value="Electricity">Electricity</SelectItem>
                           <SelectItem value="Late Fee">Late Fee</SelectItem>
                         </SelectContent>
                       </Select>
@@ -2703,13 +2789,13 @@ const TenantDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Generate QR Button */}
+                    {/* Display QR Button */}
                     <Button
                       onClick={handleGenerateQR}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center space-x-2"
                     >
                       <QrCode className="w-4 h-4" />
-                      <span>Generate QR Code</span>
+                      <span>Display QR Code</span>
                     </Button>
                   </CardContent>
                 </Card>
@@ -2809,7 +2895,7 @@ const TenantDashboard = () => {
                     ) : (
                       <div className="text-center py-12">
                         <QrCode className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500">Generate a QR code to start your payment</p>
+                        <p className="text-gray-500">Display a QR code to start your payment</p>
                       </div>
                     )}
                   </CardContent>
@@ -3012,6 +3098,49 @@ const TenantDashboard = () => {
                                       <span className="font-medium">Status:</span> {request.status}
                                     </p>
                                   </div>
+
+                                  {/* Feedback Section for Completed/Resolved Requests */}
+                                  {request.resolved_date && (
+                                    <div className="mt-4 border-t pt-4">
+                                      {request.tenant_feedback ? (
+                                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                          <div className="flex items-start space-x-2 mb-2">
+                                            <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                                            <h5 className="font-semibold text-gray-900">Your Feedback</h5>
+                                          </div>
+                                          <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                                            {request.tenant_feedback}
+                                          </p>
+                                        </div>
+                                      ) : (
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                          <h5 className="font-semibold text-gray-900 mb-2">Provide Feedback</h5>
+                                          <p className="text-sm text-gray-600 mb-3">
+                                            Please let us know if the maintenance was fixed properly or if there are any issues.
+                                          </p>
+                                          <Textarea
+                                            placeholder="Enter your feedback about the maintenance work..."
+                                            value={feedbackText[request.request_id] || ''}
+                                            onChange={(e) => setFeedbackText(prev => ({
+                                              ...prev,
+                                              [request.request_id]: e.target.value
+                                            }))}
+                                            className="mb-3"
+                                            rows={4}
+                                            disabled={submittingFeedback[request.request_id]}
+                                          />
+                                          <Button
+                                            onClick={() => handleSubmitFeedback(request.request_id)}
+                                            disabled={submittingFeedback[request.request_id] || !feedbackText[request.request_id]?.trim()}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                                            size="sm"
+                                          >
+                                            {submittingFeedback[request.request_id] ? 'Submitting...' : 'Submit Feedback'}
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center">
@@ -3459,7 +3588,6 @@ const TenantDashboard = () => {
                   <SelectContent>
                     <SelectItem value="plumbing">Plumbing</SelectItem>
                     <SelectItem value="electrical">Electrical</SelectItem>
-                    <SelectItem value="hvac">HVAC</SelectItem>
                     <SelectItem value="appliance">Appliance</SelectItem>
                     <SelectItem value="structural">Structural</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
@@ -3808,6 +3936,76 @@ const TenantDashboard = () => {
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               {uploadingReceipt ? 'Uploading...' : 'Upload Receipt'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Password Dialog */}
+      <Dialog open={changePasswordDialogOpen} onOpenChange={setChangePasswordDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Enter your current password and choose a new password for your account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                value={changePasswordForm.currentPassword}
+                onChange={(e) => setChangePasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                placeholder="Enter current password"
+                disabled={changingPassword}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={changePasswordForm.newPassword}
+                onChange={(e) => setChangePasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                placeholder="Enter new password (min. 6 characters)"
+                disabled={changingPassword}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={changePasswordForm.confirmPassword}
+                onChange={(e) => setChangePasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                placeholder="Confirm new password"
+                disabled={changingPassword}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setChangePasswordForm({
+                  currentPassword: '',
+                  newPassword: '',
+                  confirmPassword: ''
+                });
+                setChangePasswordDialogOpen(false);
+              }}
+              disabled={changingPassword}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleChangePassword}
+              disabled={changingPassword}
+              className="bg-gray-800 hover:bg-gray-700 text-white"
+            >
+              {changingPassword ? 'Changing...' : 'Change Password'}
             </Button>
           </div>
         </DialogContent>
