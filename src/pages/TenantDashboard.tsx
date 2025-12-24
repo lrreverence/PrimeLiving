@@ -1473,17 +1473,6 @@ const TenantDashboard = () => {
                     Here's your rental summary for {contractData?.units?.unit_number ? `Unit ${contractData.units.unit_number}` : 'your unit'}
                   </p>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <div className="text-right">
-                    <p className="text-sm text-gray-600">Contract Progress</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {Math.round(calculateContractProgress())}%
-                    </p>
-                  </div>
-                  <div className="w-32">
-                    <Progress value={calculateContractProgress()} className="h-2" />
-                  </div>
-                </div>
               </div>
 
               {/* Summary Cards */}
