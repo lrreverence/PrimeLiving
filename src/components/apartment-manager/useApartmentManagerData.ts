@@ -89,6 +89,10 @@ export const useApartmentManagerData = () => {
           variant: "destructive"
         });
       } else {
+        console.log('Fetched tenants:', data?.length || 0, 'tenants');
+        if (data && data.length > 0) {
+          console.log('Sample tenant valid_id_url:', data[0]?.valid_id_url);
+        }
         setTenants(data || []);
       }
     } catch (error) {

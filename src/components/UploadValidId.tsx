@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload, FileText, X, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +18,7 @@ interface UploadValidIdProps {
 export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false, apartmentManagerId }: UploadValidIdProps) => {
   const [validIdFile, setValidIdFile] = useState<File | null>(null);
   const [validIdPreview, setValidIdPreview] = useState<string | null>(null);
+  const [idNumber, setIdNumber] = useState<string>('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string>('');
   const { toast } = useToast();
@@ -54,6 +56,7 @@ export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false, apar
   const removeValidId = () => {
     setValidIdFile(null);
     setValidIdPreview(null);
+    setIdNumber('');
     setError('');
   };
 
@@ -67,20 +70,44 @@ export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false, apar
       setUploading(true);
       setError('');
       
+      console.log('Starting upload for tenant:', tenantId);
+      console.log('File details:', {
+        name: validIdFile.name,
+        size: validIdFile.size,
+        type: validIdFile.type
+      });
+      
       const fileExt = validIdFile.name.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `valid-ids/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      console.log('Uploading to path:', filePath);
+
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('tenant-documents')
         .upload(filePath, validIdFile, {
           cacheControl: '3600',
           upsert: false
         });
 
+      console.log('Upload result:', { uploadError, uploadData });
+
       if (uploadError) {
         console.error('Upload error:', uploadError);
-        setError('Failed to upload valid ID. Please try again.');
+        let errorMessage = 'Failed to upload valid ID. Please try again.';
+        
+        // Provide more specific error messages
+        if (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('not found')) {
+          errorMessage = 'Storage bucket "tenant-documents" not found. Please create this bucket in Supabase Storage.';
+        } else if (uploadError.message?.includes('new row violates row-level security')) {
+          errorMessage = 'Permission denied. Please check storage bucket policies.';
+        } else if (uploadError.message?.includes('duplicate')) {
+          errorMessage = 'A file with this name already exists. Please try again.';
+        } else if (uploadError.message) {
+          errorMessage = `Upload failed: ${uploadError.message}`;
+        }
+        
+        setError(errorMessage);
         setUploading(false);
         return;
       }
@@ -98,6 +125,11 @@ export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false, apar
         valid_id_uploaded_at: new Date().toISOString()
       };
 
+      // Add ID number if provided
+      if (idNumber.trim()) {
+        updateData.id_number = idNumber.trim();
+      }
+
       // Auto-verify if uploaded by apartment manager
       if (apartmentManagerId) {
         updateData.valid_id_verified = true;
@@ -105,6 +137,8 @@ export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false, apar
         updateData.valid_id_verified_by = apartmentManagerId;
       }
 
+      console.log('Updating tenant record with:', updateData);
+      
       const { error: updateError } = await supabase
         .from('tenants')
         .update(updateData)
@@ -112,9 +146,31 @@ export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false, apar
 
       if (updateError) {
         console.error('Error updating tenant:', updateError);
-        setError('Failed to save valid ID. Please try again.');
+        let errorMessage = 'Failed to save valid ID. Please try again.';
+        
+        if (updateError.message) {
+          errorMessage = `Failed to save: ${updateError.message}`;
+        }
+        
+        setError(errorMessage);
         setUploading(false);
         return;
+      }
+
+      console.log('Tenant record updated successfully with URL:', validIdUrl);
+      console.log('Update data sent:', updateData);
+
+      // Verify the update was successful by fetching the updated record
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('tenants')
+        .select('tenant_id, valid_id_url, valid_id_verified, id_number')
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (verifyError) {
+        console.error('Error verifying update:', verifyError);
+      } else {
+        console.log('Verified tenant data after update:', verifyData);
       }
 
       toast({
@@ -124,10 +180,22 @@ export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false, apar
           : "Valid ID has been uploaded successfully.",
       });
 
-      onUploadSuccess();
-    } catch (err) {
+      // Reset form state
+      setValidIdFile(null);
+      setValidIdPreview(null);
+      setIdNumber('');
+      setUploading(false);
+      
+      // Wait a bit to ensure database is updated before refreshing
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Call the success callback which should refresh the tenant list
+      if (onUploadSuccess) {
+        await onUploadSuccess();
+      }
+    } catch (err: any) {
       console.error('Error uploading file:', err);
-      setError('An unexpected error occurred. Please try again.');
+      setError(err?.message || 'An unexpected error occurred. Please try again.');
       setUploading(false);
     }
   };
@@ -141,6 +209,20 @@ export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false, apar
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
+
+        <div className="space-y-2">
+          <Label htmlFor="idNumber">
+            ID Number (Optional)
+          </Label>
+          <Input
+            id="idNumber"
+            type="text"
+            value={idNumber}
+            onChange={(e) => setIdNumber(e.target.value)}
+            placeholder="Enter ID document number (e.g., passport, driver license)"
+            className="h-9"
+          />
+        </div>
 
         <div className="space-y-2">
           <Label htmlFor="validId">
@@ -254,6 +336,19 @@ export const UploadValidId = ({ tenantId, onUploadSuccess, compact = false, apar
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="idNumber">
+              ID Number (Optional)
+            </Label>
+            <Input
+              id="idNumber"
+              type="text"
+              value={idNumber}
+              onChange={(e) => setIdNumber(e.target.value)}
+              placeholder="Enter ID document number (e.g., passport, driver license)"
+            />
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="validId">

@@ -219,7 +219,7 @@ const ApartmentManagerDashboard = () => {
       balance: overdue,
       validIdUrl: tenant.valid_id_url || undefined,
       validIdUploadedAt: tenant.valid_id_uploaded_at || undefined,
-      validIdVerified: tenant.valid_id_verified || false,
+      validIdVerified: Boolean(tenant.valid_id_verified) === true,
       validIdVerifiedAt: tenant.valid_id_verified_at || undefined,
       tenantData: tenant
     };
