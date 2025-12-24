@@ -9,11 +9,10 @@ import { useToast } from '@/hooks/use-toast';
 
 interface UploadValidIdProps {
   tenantId: number;
-  userId: string;
   onUploadSuccess: () => void;
 }
 
-export const UploadValidId = ({ tenantId, userId, onUploadSuccess }: UploadValidIdProps) => {
+export const UploadValidId = ({ tenantId, onUploadSuccess }: UploadValidIdProps) => {
   const [validIdFile, setValidIdFile] = useState<File | null>(null);
   const [validIdPreview, setValidIdPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -97,8 +96,7 @@ export const UploadValidId = ({ tenantId, userId, onUploadSuccess }: UploadValid
           valid_id_url: validIdUrl,
           valid_id_uploaded_at: new Date().toISOString()
         })
-        .eq('tenant_id', tenantId)
-        .eq('user_id', userId);
+        .eq('tenant_id', tenantId);
 
       if (updateError) {
         console.error('Error updating tenant:', updateError);
@@ -109,7 +107,7 @@ export const UploadValidId = ({ tenantId, userId, onUploadSuccess }: UploadValid
 
       toast({
         title: "Valid ID Uploaded",
-        description: "Your valid ID has been uploaded successfully. You can now access the dashboard.",
+        description: "Valid ID has been uploaded successfully.",
       });
 
       onUploadSuccess();

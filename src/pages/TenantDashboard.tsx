@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { UploadValidId } from '@/components/UploadValidId';
 
 // Type definitions - made flexible to handle schema variations
 interface TenantData {
@@ -1421,20 +1420,6 @@ const TenantDashboard = () => {
         </div>
       )}
 
-      {/* Check if Valid ID is uploaded - Block dashboard access if missing */}
-      {tenantData && user && tenantData.tenant_id && (!tenantData.valid_id_url || (typeof tenantData.valid_id_url === 'string' && tenantData.valid_id_url.trim() === '')) && !loading && (
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <UploadValidId
-            tenantId={tenantData.tenant_id}
-            userId={user.id}
-            onUploadSuccess={() => {
-              // Refresh tenant data after upload
-              fetchTenantData();
-            }}
-          />
-        </div>
-      )}
-
       {/* Show loading state */}
       {(loading || authLoading) && (
         <div className="max-w-7xl mx-auto px-6 py-8">
@@ -1459,8 +1444,8 @@ const TenantDashboard = () => {
         </div>
       )}
 
-      {/* Show dashboard only if Valid ID is uploaded (not null, undefined, or empty string) */}
-      {tenantData && user && tenantData.tenant_id && tenantData.valid_id_url && typeof tenantData.valid_id_url === 'string' && tenantData.valid_id_url.trim() !== '' && !loading && (
+      {/* Show dashboard */}
+      {tenantData && user && tenantData.tenant_id && !loading && (
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Navigation */}

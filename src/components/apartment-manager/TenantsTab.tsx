@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Search, Plus, Edit, Eye, Trash2, IdCard, X, Download, FileText, User, Mail, Phone, MapPin, Calendar, Users, Briefcase, Building, Save } from 'lucide-react';
+import { Search, Plus, Edit, Eye, Trash2, IdCard, X, Download, FileText, User, Mail, Phone, MapPin, Calendar, Users, Briefcase, Building, Save, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -49,6 +49,7 @@ export const TenantsTab = ({ tenants, tenantsLoading, searchTerm, onSearchChange
   const { toast } = useToast();
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [viewIdModalOpen, setViewIdModalOpen] = useState(false);
+  const [uploadIdModalOpen, setUploadIdModalOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
