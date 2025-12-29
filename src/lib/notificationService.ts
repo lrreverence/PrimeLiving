@@ -6,7 +6,7 @@
  * Current Implementation:
  * - Notifications are saved to the database and appear in tenant dashboards
  * - Email sending via Supabase Edge Function (Resend/SendGrid)
- * - SMS sending via Supabase Edge Function (TextBee API)
+ * - SMS sending via direct TextBee API calls
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -62,7 +62,41 @@ export const sendEmailNotification = async (
 };
 
 /**
- * Send SMS notification to a tenant via TextBee API
+ * Format phone number to E.164 format
+ */
+function formatPhoneNumber(phone: string): string | null {
+  if (!phone || phone === 'N/A') {
+    return null;
+  }
+
+  // Remove all non-digit characters except +
+  let cleaned = phone.replace(/[^\d+]/g, '');
+
+  // If it already starts with +, return as is
+  if (cleaned.startsWith('+')) {
+    return cleaned;
+  }
+
+  // Handle Philippines numbers (09XXXXXXXXX)
+  if (cleaned.startsWith('09') && cleaned.length === 11) {
+    return `+63${cleaned.substring(1)}`;
+  }
+
+  // Handle Philippines numbers without leading 0 (9XXXXXXXXX)
+  if (cleaned.startsWith('9') && cleaned.length === 10) {
+    return `+63${cleaned}`;
+  }
+
+  // If no country code detected, try to add + if it's a reasonable length
+  if (cleaned.length >= 10 && cleaned.length <= 15) {
+    return `+${cleaned}`;
+  }
+
+  return null;
+}
+
+/**
+ * Send SMS notification to a tenant via TextBee API (direct call, no Edge Function)
  * @param phoneNumber - Tenant's phone number (will be formatted to E.164)
  * @param message - SMS message body
  * @returns Promise with success status
@@ -84,37 +118,73 @@ export const sendSMSNotification = async (
       return { success: false, error: 'Message cannot be empty' };
     }
 
-    console.log('Calling send-sms Edge Function with:', { 
-      phoneNumber, 
+    // Get TextBee API credentials from environment
+    const apiKey = import.meta.env.VITE_TEXTBEE_API_KEY;
+    const deviceId = import.meta.env.VITE_TEXTBEE_DEVICE_ID;
+
+    if (!apiKey) {
+      console.error('TextBee API key not configured');
+      return { success: false, error: 'TextBee API key not configured. Please set VITE_TEXTBEE_API_KEY in your .env file' };
+    }
+
+    if (!deviceId) {
+      console.error('TextBee Device ID not configured');
+      return { success: false, error: 'TextBee Device ID not configured. Please set VITE_TEXTBEE_DEVICE_ID in your .env file' };
+    }
+
+    // Format phone number to E.164 format
+    const formattedPhone = formatPhoneNumber(phoneNumber);
+    
+    if (!formattedPhone) {
+      return { success: false, error: `Invalid phone number format: ${phoneNumber}. Please provide a valid phone number.` };
+    }
+
+    console.log('Calling TextBee API directly with:', { 
+      phoneNumber: formattedPhone, 
       messageLength: message.length 
     });
+
+    // Call TextBee API directly
+    const textbeeUrl = `https://api.textbee.dev/api/v1/gateway/devices/${deviceId}/send-sms`;
     
-    // Use Supabase Edge Function for SMS sending via TextBee
-    const { data, error } = await supabase.functions.invoke('send-sms', {
-      body: {
-        to: phoneNumber,
-        message: message,
+    const response = await fetch(textbeeUrl, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        recipients: [formattedPhone],
+        message: message,
+      }),
     });
 
-    console.log('SMS Edge Function response:', { data, error });
-
-    if (error) {
-      console.error('Error calling SMS function:', error);
-      return { success: false, error };
+    if (!response.ok) {
+      const errorData = await response.text();
+      let errorMessage = 'Failed to send SMS via TextBee';
+      try {
+        const errorJson = JSON.parse(errorData);
+        errorMessage = errorJson.message || errorJson.error || errorMessage;
+      } catch {
+        errorMessage = errorData || errorMessage;
+      }
+      console.error('TextBee API error:', errorMessage);
+      return { success: false, error: errorMessage };
     }
 
-    // Check if the function returned an error
-    if (data && !data.success) {
-      console.error('SMS function returned error:', data.error);
-      return { success: false, error: data.error || 'Unknown error' };
+    // Parse successful response
+    let result;
+    try {
+      result = await response.json();
+    } catch {
+      result = { success: true };
     }
 
-    console.log('SMS sent successfully via Edge Function');
-    return { success: true, data };
-  } catch (error) {
+    console.log('SMS sent successfully via TextBee API');
+    return { success: true, data: result };
+  } catch (error: any) {
     console.error('Error sending SMS notification:', error);
-    return { success: false, error };
+    return { success: false, error: error.message || 'Unknown error' };
   }
 };
 

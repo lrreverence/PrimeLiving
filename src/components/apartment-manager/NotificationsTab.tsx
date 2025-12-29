@@ -14,6 +14,8 @@ interface Tenant {
   id: number;
   name: string;
   unit: string;
+  email?: string;
+  contact?: string;
 }
 
 interface NotificationsTabProps {
@@ -205,15 +207,26 @@ export const NotificationsTab = ({
                     </Label>
                   </div>
                   {tenants.map((tenant) => (
-                    <div key={tenant.id} className="flex items-center space-x-2">
+                    <div key={tenant.id} className="flex items-start space-x-2">
                       <Checkbox
                         id={`tenant-${tenant.id}`}
                         checked={selectedRecipients.includes(`${tenant.name}${tenant.unit !== 'N/A' ? ` (${tenant.unit})` : ''}`)}
                         onCheckedChange={(checked) => onRecipientChange(`${tenant.name}${tenant.unit !== 'N/A' ? ` (${tenant.unit})` : ''}`, checked as boolean)}
+                        className="mt-1"
                       />
-                      <Label htmlFor={`tenant-${tenant.id}`} className="text-sm font-normal">
-                        {tenant.name}{tenant.unit !== 'N/A' && ` (${tenant.unit})`}
-                      </Label>
+                      <div className="flex-1">
+                        <Label htmlFor={`tenant-${tenant.id}`} className="text-sm font-normal cursor-pointer">
+                          {tenant.name}{tenant.unit !== 'N/A' && ` (${tenant.unit})`}
+                        </Label>
+                        <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
+                          {tenant.email && (
+                            <div>📧 {tenant.email}</div>
+                          )}
+                          {tenant.contact && tenant.contact !== 'N/A' && (
+                            <div>📱 {tenant.contact}</div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
