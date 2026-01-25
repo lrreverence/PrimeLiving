@@ -18,8 +18,6 @@ interface TenantData {
   emergency_contact_relationship?: string;
   occupation?: string;
   company?: string;
-  valid_id_url?: string;
-  valid_id_uploaded_at?: string;
   created_at?: string;
   updated_at?: string;
   [key: string]: any; // Allow additional properties

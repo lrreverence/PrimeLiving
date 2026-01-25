@@ -89,7 +89,7 @@ const SuperAdminDashboard = () => {
   // Edit dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [editType, setEditType] = useState<'user' | 'tenant' | 'apartment_manager' | 'unit' | null>(null);
+  const [editType, setEditType] = useState<'user' | 'apartment_manager' | 'unit' | null>(null);
 
   // Add apartment manager dialog states
   const [addApartmentManagerDialogOpen, setAddApartmentManagerDialogOpen] = useState(false);
@@ -288,7 +288,7 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const handleEdit = (item: any, type: 'user' | 'tenant' | 'apartment_manager' | 'unit') => {
+  const handleEdit = (item: any, type: 'user' | 'apartment_manager' | 'unit') => {
     setEditingItem(item);
     setEditType(type);
     setEditDialogOpen(true);
@@ -300,20 +300,7 @@ const SuperAdminDashboard = () => {
     try {
       let error;
       
-      if (editType === 'tenant') {
-        const { error: updateError } = await supabase
-          .from('tenants')
-          .update({
-            first_name: editingItem.first_name,
-            last_name: editingItem.last_name,
-            email: editingItem.email,
-            contact_number: editingItem.contact_number,
-            branch: editingItem.branch,
-            updated_at: new Date().toISOString()
-          })
-          .eq('tenant_id', editingItem.tenant_id);
-        error = updateError;
-      } else if (editType === 'apartment_manager') {
+      if (editType === 'apartment_manager') {
         const { error: updateError } = await supabase
           .from('apartment_managers')
           .update({
@@ -365,7 +352,7 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const handleDelete = async (item: any, type: 'user' | 'tenant' | 'apartment_manager' | 'unit') => {
+  const handleDelete = async (item: any, type: 'tenant' | 'apartment_manager' | 'unit') => {
     if (!confirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`)) {
       return;
     }
@@ -819,9 +806,7 @@ const SuperAdminDashboard = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              if (user.tenantData) {
-                                handleEdit(user.tenantData, 'tenant');
-                              } else if (user.apartment_managerData) {
+                              if (user.apartment_managerData) {
                                 handleEdit(user.apartment_managerData, 'apartment_manager');
                               }
                             }}
@@ -880,13 +865,6 @@ const SuperAdminDashboard = () => {
                           <TableCell>{unit?.unit_number || 'N/A'}</TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEdit(tenant, 'tenant')}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1264,47 +1242,6 @@ const SuperAdminDashboard = () => {
           </DialogHeader>
           {editingItem && editType && (
             <div className="space-y-4">
-              {editType === 'tenant' && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium">First Name</label>
-                      <Input
-                        value={editingItem.first_name || ''}
-                        onChange={(e) => setEditingItem({ ...editingItem, first_name: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Last Name</label>
-                      <Input
-                        value={editingItem.last_name || ''}
-                        onChange={(e) => setEditingItem({ ...editingItem, last_name: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Email</label>
-                    <Input
-                      value={editingItem.email || ''}
-                      onChange={(e) => setEditingItem({ ...editingItem, email: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Contact Number</label>
-                    <Input
-                      value={editingItem.contact_number || ''}
-                      onChange={(e) => setEditingItem({ ...editingItem, contact_number: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Branch</label>
-                    <Input
-                      value={editingItem.branch || ''}
-                      onChange={(e) => setEditingItem({ ...editingItem, branch: e.target.value })}
-                    />
-                  </div>
-                </>
-              )}
               {editType === 'apartment_manager' && (
                 <>
                   <div className="grid grid-cols-2 gap-4">
