@@ -67,7 +67,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import EmailConfirmationBanner from '@/components/EmailConfirmationBanner';
 import { TenantFAQChatbot } from '@/components/TenantFAQChatbot';
-import qrCodeImage from '@/assets/78eb38c8-0172-40a9-97a4-42fb95af07a9.jpeg';
+import qrCodeImage from '@/assets/626735939_835905779493480_8683435426482742344_n.jpg';
 import {
   Building2,
   User,
