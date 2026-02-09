@@ -1,12 +1,30 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MapPin, X } from "lucide-react";
+import { MapPin } from "lucide-react";
 import ApartmentMap, { ApartmentLocation } from "@/components/ApartmentMap";
 import MapErrorBoundary from "@/components/MapErrorBoundary";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 import caintaBuilding from "@/assets/cainta-building.jpg";
-import sampalocBuilding from "@/assets/sampaloc-building.jpg";
-import cubaoBuilding from "@/assets/cubao-building.jpg";
+import sampalocSlide1 from "@/assets/sam1.png";
+import sampalocSlide2 from "@/assets/sam2.png";
+import sampalocSlide3 from "@/assets/sam3.png";
+import cub1 from "@/assets/cub1.jpg";
+import cub2 from "@/assets/cub2.jpg";
+import cub3 from "@/assets/cub3.jpg";
+import cub4 from "@/assets/cub4.jpg";
+import cub5 from "@/assets/cub5.jpg";
+import cub6 from "@/assets/cub6.jpg";
+import cub7 from "@/assets/cub7.jpg";
+
+const sampalocSlides = [sampalocSlide1, sampalocSlide2, sampalocSlide3];
+const cubaoSlides = [cub1, cub2, cub3, cub4, cub5, cub6, cub7];
 
 const PrimeLocationsSection = () => {
   const [selectedLocation, setSelectedLocation] = useState<ApartmentLocation | null>(null);
@@ -69,7 +87,7 @@ const PrimeLocationsSection = () => {
   const locationCards = locations.map(loc => ({
     id: loc.id,
     name: loc.name,
-    image: loc.id === 'cainta' ? caintaBuilding : loc.id === 'sampaloc' ? sampalocBuilding : cubaoBuilding,
+    image: loc.id === 'cainta' ? caintaBuilding : loc.id === 'sampaloc' ? sampalocSlide1 : cub1,
     location: loc.location,
     distanceToCBD: loc.distanceToCBD || "15-25 mins",
     publicTransport: loc.publicTransport || "5 mins walk",
@@ -96,13 +114,53 @@ const PrimeLocationsSection = () => {
               key={index}
               className="bg-white rounded-xl shadow-lg overflow-hidden border border-border/50 hover:shadow-xl transition-shadow duration-300"
             >
-              {/* Building Image */}
-              <div className="relative">
-                <img
-                  src={location.image}
-                  alt={`${location.name} building`}
-                  className="w-full h-48 object-cover"
-                />
+              {/* Building Image — Sampaloc and Cubao use slide carousels */}
+              <div className="relative h-48 overflow-hidden">
+                {location.id === "sampaloc" ? (
+                  <Carousel
+                    opts={{ loop: true, align: "start" }}
+                    className="w-full h-full"
+                  >
+                    <CarouselContent className="h-48 -ml-0">
+                      {sampalocSlides.map((slide, i) => (
+                        <CarouselItem key={i} className="pl-0">
+                          <img
+                            src={slide}
+                            alt={`${location.name} — ${i + 1} of ${sampalocSlides.length}`}
+                            className="w-full h-48 object-cover"
+                          />
+                        </CarouselItem>
+                      ))}
+                    </CarouselContent>
+                    <CarouselPrevious className="left-2 h-8 w-8 border-0 bg-black/50 text-white hover:bg-black/70 hover:text-white" />
+                    <CarouselNext className="right-2 h-8 w-8 border-0 bg-black/50 text-white hover:bg-black/70 hover:text-white" />
+                  </Carousel>
+                ) : location.id === "cubao" ? (
+                  <Carousel
+                    opts={{ loop: true, align: "start" }}
+                    className="w-full h-full"
+                  >
+                    <CarouselContent className="h-48 -ml-0">
+                      {cubaoSlides.map((slide, i) => (
+                        <CarouselItem key={i} className="pl-0">
+                          <img
+                            src={slide}
+                            alt={`${location.name} — ${i + 1} of ${cubaoSlides.length}`}
+                            className="w-full h-48 object-cover"
+                          />
+                        </CarouselItem>
+                      ))}
+                    </CarouselContent>
+                    <CarouselPrevious className="left-2 h-8 w-8 border-0 bg-black/50 text-white hover:bg-black/70 hover:text-white" />
+                    <CarouselNext className="right-2 h-8 w-8 border-0 bg-black/50 text-white hover:bg-black/70 hover:text-white" />
+                  </Carousel>
+                ) : (
+                  <img
+                    src={location.image}
+                    alt={`${location.name} building`}
+                    className="w-full h-48 object-cover"
+                  />
+                )}
               </div>
 
               {/* Card Content */}
