@@ -11,7 +11,9 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import caintaBuilding from "@/assets/cainta-building.jpg";
+import ca1 from "@/assets/ca1.jpg";
+import ca2 from "@/assets/ca2.jpg";
+import ca3 from "@/assets/ca3.jpg";
 import sampalocSlide1 from "@/assets/sam1.png";
 import sampalocSlide2 from "@/assets/sam2.png";
 import sampalocSlide3 from "@/assets/sam3.png";
@@ -23,6 +25,7 @@ import cub5 from "@/assets/cub5.jpg";
 import cub6 from "@/assets/cub6.jpg";
 import cub7 from "@/assets/cub7.jpg";
 
+const caintaSlides = [ca1, ca2, ca3];
 const sampalocSlides = [sampalocSlide1, sampalocSlide2, sampalocSlide3];
 const cubaoSlides = [cub1, cub2, cub3, cub4, cub5, cub6, cub7];
 
@@ -87,7 +90,7 @@ const PrimeLocationsSection = () => {
   const locationCards = locations.map(loc => ({
     id: loc.id,
     name: loc.name,
-    image: loc.id === 'cainta' ? caintaBuilding : loc.id === 'sampaloc' ? sampalocSlide1 : cub1,
+    image: loc.id === 'cainta' ? ca1 : loc.id === 'sampaloc' ? sampalocSlide1 : cub1,
     location: loc.location,
     distanceToCBD: loc.distanceToCBD || "15-25 mins",
     publicTransport: loc.publicTransport || "5 mins walk",
@@ -114,9 +117,28 @@ const PrimeLocationsSection = () => {
               key={index}
               className="bg-white rounded-xl shadow-lg overflow-hidden border border-border/50 hover:shadow-xl transition-shadow duration-300"
             >
-              {/* Building Image — Sampaloc and Cubao use slide carousels */}
+              {/* Building Image — all branches use slide carousels */}
               <div className="relative h-48 overflow-hidden">
-                {location.id === "sampaloc" ? (
+                {location.id === "cainta" ? (
+                  <Carousel
+                    opts={{ loop: true, align: "start" }}
+                    className="w-full h-full"
+                  >
+                    <CarouselContent className="h-48 -ml-0">
+                      {caintaSlides.map((slide, i) => (
+                        <CarouselItem key={i} className="pl-0">
+                          <img
+                            src={slide}
+                            alt={`${location.name} — ${i + 1} of ${caintaSlides.length}`}
+                            className="w-full h-48 object-cover"
+                          />
+                        </CarouselItem>
+                      ))}
+                    </CarouselContent>
+                    <CarouselPrevious className="left-2 h-8 w-8 border-0 bg-black/50 text-white hover:bg-black/70 hover:text-white" />
+                    <CarouselNext className="right-2 h-8 w-8 border-0 bg-black/50 text-white hover:bg-black/70 hover:text-white" />
+                  </Carousel>
+                ) : location.id === "sampaloc" ? (
                   <Carousel
                     opts={{ loop: true, align: "start" }}
                     className="w-full h-full"
@@ -154,13 +176,7 @@ const PrimeLocationsSection = () => {
                     <CarouselPrevious className="left-2 h-8 w-8 border-0 bg-black/50 text-white hover:bg-black/70 hover:text-white" />
                     <CarouselNext className="right-2 h-8 w-8 border-0 bg-black/50 text-white hover:bg-black/70 hover:text-white" />
                   </Carousel>
-                ) : (
-                  <img
-                    src={location.image}
-                    alt={`${location.name} building`}
-                    className="w-full h-48 object-cover"
-                  />
-                )}
+                ) : null}
               </div>
 
               {/* Card Content */}

@@ -5,7 +5,7 @@ import Contact from "@/components/Contact";
 import ApartmentMap, { ApartmentLocation } from "@/components/ApartmentMap";
 import { Button } from "@/components/ui/button";
 import { Map, List } from "lucide-react";
-import caintaImage from "@/assets/cainta-building.jpg";
+import caintaImage from "@/assets/ca1.jpg";
 import sampalocImage from "@/assets/sampaloc-building.jpg";
 import cubaoImage from "@/assets/cubao-building.jpg";
 
