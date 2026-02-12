@@ -68,6 +68,8 @@ import { useToast } from '@/hooks/use-toast';
 import EmailConfirmationBanner from '@/components/EmailConfirmationBanner';
 import { TenantFAQChatbot } from '@/components/TenantFAQChatbot';
 import qrCodeImage from '@/assets/626735939_835905779493480_8683435426482742344_n.jpg';
+import cubaoQrImage from '@/assets/cubao_qr.jpg';
+import sampalocQrImage from '@/assets/sampaloc_qr.jpg';
 import {
   Building2,
   User,
@@ -775,6 +777,14 @@ const TenantDashboard = () => {
       description: "All payment receipts have been downloaded as a ZIP file.",
     });
   };
+
+  // QR code image by branch: Cubao and Sampaloc have branch-specific QRs; Cainta uses default
+  const paymentQrImage = (() => {
+    const branch = (tenantData?.branch || '').toLowerCase();
+    if (branch.includes('cubao')) return cubaoQrImage;
+    if (branch.includes('sampaloc')) return sampalocQrImage;
+    return qrCodeImage; // Cainta or fallback
+  })();
 
   const handleGenerateQR = () => {
     // Generate a stable reference number
@@ -2812,7 +2822,7 @@ const TenantDashboard = () => {
                         <div className="flex justify-center">
                           <div className="w-64 h-64 bg-white border-2 border-gray-300 rounded-lg flex items-center justify-center p-4">
                             <img 
-                              src={qrCodeImage} 
+                              src={paymentQrImage} 
                               alt="Payment QR Code" 
                               className="w-full h-full object-contain"
                             />
