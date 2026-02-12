@@ -67,7 +67,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import EmailConfirmationBanner from '@/components/EmailConfirmationBanner';
 import { TenantFAQChatbot } from '@/components/TenantFAQChatbot';
-import qrCodeImage from '@/assets/626735939_835905779493480_8683435426482742344_n.jpg';
 import cubaoQrImage from '@/assets/cubao_qr.jpg';
 import sampalocQrImage from '@/assets/sampaloc_qr.jpg';
 import {
@@ -783,7 +782,7 @@ const TenantDashboard = () => {
     const branch = (tenantData?.branch || '').toLowerCase();
     if (branch.includes('cubao')) return cubaoQrImage;
     if (branch.includes('sampaloc')) return sampalocQrImage;
-    return qrCodeImage; // Cainta or fallback
+    return cubaoQrImage; // Cainta or fallback (use cubao QR until cainta_qr.jpg is added)
   })();
 
   const handleGenerateQR = () => {
