@@ -19,7 +19,6 @@ import {
   Edit,
   Trash2,
   Plus,
-  Download,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -55,12 +54,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 
 const BRANCH_LABELS: Record<string, string> = {
   cainta: 'Cainta Rizal',
   sampaloc: 'Sampaloc Manila',
   cubao: 'Cubao QC',
 };
+
+const PIE_COLORS = ['hsl(262, 83%, 58%)', 'hsl(142, 76%, 36%)', 'hsl(217, 91%, 60%)', 'hsl(38, 92%, 50%)', 'hsl(0, 72%, 51%)'];
 
 const SuperAdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -508,84 +511,6 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const generateReport = () => {
-    try {
-      const csvRows: string[] = [];
-      
-      csvRows.push('PRIME LIVING - SUPER ADMIN REPORT');
-      csvRows.push(`Generated: ${new Date().toLocaleString()}`);
-      csvRows.push('');
-      
-      // Users section
-      csvRows.push('USERS');
-      csvRows.push('Email,Role,Name,Status,Created At');
-      allUsers.forEach(user => {
-        csvRows.push([
-          user.email || '',
-          user.role || 'unknown',
-          `${user.user_metadata?.name || ''}`,
-          user.email_confirmed_at ? 'Confirmed' : 'Pending',
-          user.created_at || ''
-        ].join(','));
-      });
-      csvRows.push('');
-      
-      // Tenants section
-      csvRows.push('TENANTS');
-      csvRows.push('Name,Email,Contact,Branch,Unit');
-      allTenants.forEach(tenant => {
-        const contract = Array.isArray(tenant.contracts) ? tenant.contracts[0] : tenant.contracts;
-        const unit = contract?.units ? (Array.isArray(contract.units) ? contract.units[0] : contract.units) : null;
-        csvRows.push([
-          `"${tenant.first_name || ''} ${tenant.last_name || ''}"`.trim(),
-          tenant.email || '',
-          tenant.contact_number || '',
-          tenant.branch || '',
-          unit?.unit_number || 'N/A'
-        ].join(','));
-      });
-      csvRows.push('');
-      
-      // Payments section
-      csvRows.push('PAYMENTS');
-      csvRows.push('Date,Tenant,Amount,Status,Method');
-      allPayments.forEach(payment => {
-        const tenant = Array.isArray(payment.tenants) ? payment.tenants[0] : payment.tenants;
-        const tenantName = tenant ? `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() : 'Unknown';
-        csvRows.push([
-          payment.payment_date || '',
-          `"${tenantName}"`,
-          payment.amount || '0',
-          payment.status || 'pending',
-          payment.payment_mode || 'N/A'
-        ].join(','));
-      });
-      
-      const csvContent = csvRows.join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `super-admin-report-${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast({
-        title: "Report Generated",
-        description: "Report has been downloaded successfully.",
-      });
-    } catch (error) {
-      console.error('Error generating report:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate report. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
   // Filter functions
   const filteredTenants = allTenants.filter(tenant => {
     if (!searchTerm) return true;
@@ -692,13 +617,7 @@ const SuperAdminDashboard = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">System Overview</h2>
-              <Button onClick={generateReport} className="flex items-center space-x-2">
-                <Download className="w-4 h-4" />
-                <span>Generate Report</span>
-              </Button>
-            </div>
+            <h2 className="text-2xl font-bold">System Overview</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
@@ -767,7 +686,113 @@ const SuperAdminDashboard = () => {
               </CardHeader>
               <CardContent className="space-y-6">
                 {demographics.byBranch.length > 0 ? (
-                  <div className="overflow-x-auto rounded-md border">
+                  <>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-3">Occupied vs vacant units by branch</p>
+                        <ChartContainer
+                          config={{
+                            occupied: { label: 'Occupied', color: 'hsl(142, 76%, 36%)' },
+                            vacant: { label: 'Vacant', color: 'hsl(0, 0%, 65%)' },
+                          }}
+                          className="h-[280px] w-full"
+                        >
+                          <BarChart data={demographics.byBranch} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                            <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="occupied" fill="var(--color-occupied)" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="vacant" fill="var(--color-vacant)" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-3">Monthly revenue by branch (₱)</p>
+                        <ChartContainer
+                          config={{
+                            revenue: { label: 'Revenue', color: 'hsl(217, 91%, 60%)' },
+                          }}
+                          className="h-[280px] w-full"
+                        >
+                          <BarChart data={demographics.byBranch} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                            <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`} />
+                            <ChartTooltip content={<ChartTooltipContent formatter={(v) => <span className="font-mono">₱{Number(v).toLocaleString()}</span>} />} />
+                            <Bar dataKey="revenue" fill="var(--color-revenue)" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-3">Tenant distribution by branch</p>
+                        <ChartContainer
+                          config={demographics.byBranch.reduce((acc, b, i) => ({ ...acc, [b.branch]: { label: b.label, color: PIE_COLORS[i % PIE_COLORS.length] } }), {})}
+                          className="h-[280px] w-full"
+                        >
+                          <PieChart>
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Pie
+                              data={demographics.byBranch.map(b => ({ name: b.label, value: b.tenants }))}
+                              dataKey="value"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={50}
+                              outerRadius={90}
+                              paddingAngle={2}
+                              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            >
+                              {demographics.byBranch.map((_, i) => (
+                                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+                          </PieChart>
+                        </ChartContainer>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-3">Occupancy (units)</p>
+                        <ChartContainer
+                          config={{
+                            occupied: { label: 'Occupied', color: 'hsl(142, 76%, 36%)' },
+                            vacant: { label: 'Vacant', color: 'hsl(0, 0%, 65%)' },
+                          }}
+                          className="h-[280px] w-full"
+                        >
+                          <PieChart>
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Pie
+                              data={[
+                                { name: 'Occupied', value: stats.occupiedUnits },
+                                { name: 'Vacant', value: stats.vacantUnits },
+                              ].filter(d => d.value > 0)}
+                              dataKey="value"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={50}
+                              outerRadius={90}
+                              paddingAngle={2}
+                              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            >
+                              {[
+                                { name: 'Occupied', value: stats.occupiedUnits },
+                                { name: 'Vacant', value: stats.vacantUnits },
+                              ]
+                                .filter(d => d.value > 0)
+                                .map((d) => (
+                                  <Cell key={d.name} fill={d.name === 'Occupied' ? 'var(--color-occupied)' : 'var(--color-vacant)'} />
+                                ))}
+                            </Pie>
+                            <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+                          </PieChart>
+                        </ChartContainer>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-md border">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -795,6 +820,7 @@ const SuperAdminDashboard = () => {
                       </TableBody>
                     </Table>
                   </div>
+                  </>
                 ) : (
                   <p className="text-sm text-muted-foreground">No branch data yet.</p>
                 )}

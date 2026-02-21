@@ -50,15 +50,15 @@ export const DocumentsTab = ({
 }: DocumentsTabProps) => {
   return (
     <div className="space-y-8">
-      {/* Document Generation Section */}
+      {/* New Document Section */}
       <div>
         <h2 className="text-3xl font-bold text-gray-900">Document Management</h2>
-        <p className="text-gray-600 mt-1">Generate and manage printable documents</p>
+        <p className="text-gray-600 mt-1">Manage printable documents</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Generate New Document</CardTitle>
+          <CardTitle>New Document</CardTitle>
           <p className="text-sm text-gray-600">Create receipts, contracts, and notices for tenants</p>
         </CardHeader>
         <CardContent>
@@ -101,7 +101,7 @@ export const DocumentsTab = ({
                 className="bg-gray-800 text-white hover:bg-gray-700 flex items-center space-x-2"
               >
                 <FileText className="w-4 h-4" />
-                <span>Generate & Download</span>
+                <span>Download</span>
               </Button>
             </div>
           </div>
@@ -113,8 +113,8 @@ export const DocumentsTab = ({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Generated Documents</CardTitle>
-              <p className="text-sm text-gray-600 mt-1">View and export all generated documents</p>
+              <CardTitle>Documents</CardTitle>
+              <p className="text-sm text-gray-600 mt-1">View and export all documents</p>
             </div>
           </div>
         </CardHeader>
@@ -126,7 +126,7 @@ export const DocumentsTab = ({
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Document Type</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Title</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Tenant</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">Generated Date</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Date</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>
                 </tr>
               </thead>
@@ -140,7 +140,7 @@ export const DocumentsTab = ({
                 ) : documents.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-gray-500">
-                      No documents found. Generate a document to get started.
+                      No documents found. Create a document to get started.
                     </td>
                   </tr>
                 ) : (
