@@ -19,31 +19,40 @@ const Locations = () => {
       id: 'cainta',
       name: "Cainta Rizal Branch",
       location: "Cainta, Rizal",
-      coordinates: [14.5794, 121.1220], // Approximate coordinates for Cainta, Rizal
+      coordinates: [14.5794, 121.1220],
       status: "Available",
-      distanceToCBD: "15-25 mins",
-      publicTransport: "5 mins walk",
-      shoppingMall: "10 mins walk",
+      details: [
+        "Near Ortigas Ave Extension",
+        "10–15 mins to SM East Ortigas",
+        "15–20 mins to LRT-2 Marikina",
+        "Accessible to Ortigas CBD",
+      ],
     },
     {
       id: 'sampaloc',
       name: "Sampaloc Manila Branch",
       location: "Sampaloc, Manila",
-      coordinates: [14.6042, 120.9822], // Approximate coordinates for Sampaloc, Manila
+      coordinates: [14.6042, 120.9822],
       status: "Available",
-      distanceToCBD: "15-25 mins",
-      publicTransport: "5 mins walk",
-      shoppingMall: "10 mins walk",
+      details: [
+        "Near UST, FEU, UE",
+        "5–10 mins to LRT-2 Legarda",
+        "Accessible via España & Recto",
+        "Ideal for students",
+      ],
     },
     {
       id: 'cubao',
       name: "Cubao QC Branch",
       location: "Cubao, Quezon City",
-      coordinates: [14.6186, 121.0567], // Approximate coordinates for Cubao, Quezon City
+      coordinates: [14.6186, 121.0567],
       status: "Available",
-      distanceToCBD: "15-25 mins",
-      publicTransport: "5 mins walk",
-      shoppingMall: "10 mins walk",
+      details: [
+        "5–10 mins to LRT-2 & MRT3 Cubao",
+        "Near SM Cubao & Gateway",
+        "Accessible via EDSA & Aurora Blvd",
+        "Near Araneta Bus Terminal",
+      ],
     },
   ];
 
@@ -53,9 +62,7 @@ const Locations = () => {
     location: loc.location,
     image: loc.id === 'cainta' ? caintaImage : loc.id === 'sampaloc' ? sampalocImage : cubaoImage,
     status: loc.status,
-    distanceToCBD: loc.distanceToCBD || "15-25 mins",
-    publicTransport: loc.publicTransport || "5 mins walk",
-    shoppingMall: loc.shoppingMall || "10 mins walk",
+    details: loc.details || [],
     coordinates: loc.coordinates,
   }));
 
@@ -119,9 +126,7 @@ const Locations = () => {
                 location={location.location}
                 image={location.image}
                 status={location.status}
-                distanceToCBD={location.distanceToCBD}
-                publicTransport={location.publicTransport}
-                shoppingMall={location.shoppingMall}
+                details={location.details}
                 coordinates={location.coordinates}
                 onExplore={() => handleExploreLocation(location.name)}
               />
@@ -145,9 +150,7 @@ const Locations = () => {
                   location={location.location}
                   image={location.image}
                   status={location.status}
-                  distanceToCBD={location.distanceToCBD}
-                  publicTransport={location.publicTransport}
-                  shoppingMall={location.shoppingMall}
+                  details={location.details}
                   onExplore={() => handleExploreLocation(location.name)}
                 />
               ))}

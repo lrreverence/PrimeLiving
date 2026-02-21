@@ -8,9 +8,7 @@ interface LocationCardProps {
   location: string;
   image: string;
   status: string;
-  distanceToCBD: string;
-  publicTransport: string;
-  shoppingMall: string;
+  details: string[];
   onExplore: () => void;
   coordinates?: [number, number]; // [latitude, longitude]
 }
@@ -20,9 +18,7 @@ const LocationCard = ({
   location,
   image,
   status,
-  distanceToCBD,
-  publicTransport,
-  shoppingMall,
+  details,
   onExplore,
   coordinates,
 }: LocationCardProps) => {
@@ -56,20 +52,16 @@ const LocationCard = ({
           <span className="text-sm">{location}</span>
         </div>
         
-        <div className="space-y-3 mb-6">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Distance to CBD:</span>
-            <span className="text-sm text-foreground font-medium">{distanceToCBD}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Public Transport:</span>
-            <span className="text-sm text-foreground font-medium">{publicTransport}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Shopping Mall:</span>
-            <span className="text-sm text-foreground font-medium">{shoppingMall}</span>
-          </div>
-        </div>
+        {details.length > 0 && (
+          <ul className="space-y-1.5 mb-6 text-sm text-muted-foreground list-none">
+            {details.map((detail, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-foreground">•</span>
+                <span>{detail}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         
         <div className="flex gap-2">
           <Button 

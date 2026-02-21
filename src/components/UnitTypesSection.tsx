@@ -4,38 +4,35 @@ import { Check } from "lucide-react";
 const UnitTypesSection = () => {
   const unitTypes = [
     {
-      title: "Studio",
-      size: "25-30 sqm",
-      priceRange: "₱15,000 - ₱18,000",
+      title: "1 Bedroom Unit",
+      priceRange: "₱7,500 - ₱8,000",
       features: [
-        "Air conditioning",
-        "Built-in bed",
-        "Kitchenette",
-        "Private bathroom"
-      ]
+        "Toilet and Bath",
+        "Spacious Window",
+        "Tiled flooring",
+        "Sink / basic kitchen counter",
+      ],
     },
     {
-      title: "1 Bedroom",
-      size: "35-40 sqm",
-      priceRange: "₱20,000 - ₱25,000",
+      title: "2 Bedroom Unit",
+      priceRange: "₱9,500 - ₱12,000",
       features: [
+        "With Balcony",
+        "Gated compound",
+        "Own electric sub-meter",
+        "Parking (limited slots)",
+      ],
+    },
+    {
+      title: "3 Bedroom Unit",
+      priceRange: "₱8,000 - ₱10,000",
+      features: [
+        "Own CR (Comfort Room)",
         "Separate bedroom",
-        "Living area",
-        "Full kitchen",
-        "Balcony"
-      ]
+        "Kitchen area",
+        "Tiled flooring",
+      ],
     },
-    {
-      title: "2 Bedroom",
-      size: "50-60 sqm",
-      priceRange: "₱28,000 - ₱35,000",
-      features: [
-        "Two bedrooms",
-        "Spacious living room",
-        "Dining area",
-        "Two balconies"
-      ]
-    }
   ];
 
   return (
@@ -47,7 +44,7 @@ const UnitTypesSection = () => {
             Choose Your Ideal Space
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            From cozy studios to spacious two-bedroom units, we have the perfect home for every lifestyle.
+            From one to three bedroom units, we have the perfect home for every lifestyle.
           </p>
         </div>
 
@@ -64,9 +61,6 @@ const UnitTypesSection = () => {
                   <h3 className="text-2xl font-bold text-foreground mb-1">
                     {unit.title}
                   </h3>
-                  <p className="text-muted-foreground text-sm">
-                    {unit.size}
-                  </p>
                 </div>
                 <div className="bg-muted rounded-full px-3 py-1">
                   <span className="text-sm font-medium text-foreground">

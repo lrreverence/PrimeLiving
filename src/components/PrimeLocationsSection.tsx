@@ -42,9 +42,12 @@ const PrimeLocationsSection = () => {
       location: "Cainta, Rizal",
       coordinates: [14.5794, 121.1220],
       status: "Available",
-      distanceToCBD: "15-25 mins",
-      publicTransport: "5 mins walk",
-      shoppingMall: "10 mins walk"
+      details: [
+        "Near Ortigas Ave Extension",
+        "10–15 mins to SM East Ortigas",
+        "15–20 mins to LRT-2 Marikina",
+        "Accessible to Ortigas CBD",
+      ],
     },
     {
       id: 'sampaloc',
@@ -52,9 +55,12 @@ const PrimeLocationsSection = () => {
       location: "Sampaloc, Manila",
       coordinates: [14.6042, 120.9822],
       status: "Available",
-      distanceToCBD: "15-25 mins",
-      publicTransport: "5 mins walk",
-      shoppingMall: "10 mins walk"
+      details: [
+        "Near UST, FEU, UE",
+        "5–10 mins to LRT-2 Legarda",
+        "Accessible via España & Recto",
+        "Ideal for students",
+      ],
     },
     {
       id: 'cubao',
@@ -62,10 +68,13 @@ const PrimeLocationsSection = () => {
       location: "Cubao, Quezon City",
       coordinates: [14.6186, 121.0567],
       status: "Available",
-      distanceToCBD: "15-25 mins",
-      publicTransport: "5 mins walk",
-      shoppingMall: "10 mins walk"
-    }
+      details: [
+        "5–10 mins to LRT-2 & MRT3 Cubao",
+        "Near SM Cubao & Gateway",
+        "Accessible via EDSA & Aurora Blvd",
+        "Near Araneta Bus Terminal",
+      ],
+    },
   ];
 
   const handleExploreLocation = (locationId: string) => {
@@ -92,9 +101,7 @@ const PrimeLocationsSection = () => {
     name: loc.name,
     image: loc.id === 'cainta' ? ca1 : loc.id === 'sampaloc' ? sampalocSlide1 : cub1,
     location: loc.location,
-    distanceToCBD: loc.distanceToCBD || "15-25 mins",
-    publicTransport: loc.publicTransport || "5 mins walk",
-    shoppingMall: loc.shoppingMall || "10 mins walk"
+    details: loc.details || [],
   }));
 
   return (
@@ -196,38 +203,22 @@ const PrimeLocationsSection = () => {
                 {/* Location Details */}
                 <div className="space-y-3 mb-6">
                   <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-muted-foreground" />
+                    <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     <span className="text-muted-foreground text-sm">
                       {location.location}
                     </span>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground text-sm">
-                        Distance to CBD:
-                      </span>
-                      <span className="text-foreground text-sm font-medium">
-                        {location.distanceToCBD}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground text-sm">
-                        Public Transport:
-                      </span>
-                      <span className="text-foreground text-sm font-medium">
-                        {location.publicTransport}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground text-sm">
-                        Shopping Mall:
-                      </span>
-                      <span className="text-foreground text-sm font-medium">
-                        {location.shoppingMall}
-                      </span>
-                    </div>
-                  </div>
+                  {location.details && location.details.length > 0 && (
+                    <ul className="space-y-1.5 text-sm text-muted-foreground list-none">
+                      {location.details.map((detail, i) => (
+                        <li key={i} className="flex gap-2">
+                          <span className="text-foreground">•</span>
+                          <span>{detail}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
 
                 {/* Explore Location Button */}

@@ -23,6 +23,8 @@ export interface ApartmentLocation {
   location: string;
   coordinates: [number, number]; // [latitude, longitude]
   status: string;
+  /** Bullet-point details shown on cards and map popup */
+  details?: string[];
   distanceToCBD?: string;
   publicTransport?: string;
   shoppingMall?: string;
@@ -233,15 +235,25 @@ const ApartmentMap = ({
                       <Badge className={location.status === 'Available' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
                         {location.status}
                       </Badge>
-                      {location.distanceToCBD && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          Distance to CBD: {location.distanceToCBD}
-                        </p>
-                      )}
-                      {location.publicTransport && (
-                        <p className="text-xs text-gray-500">
-                          Public Transport: {location.publicTransport}
-                        </p>
+                      {location.details && location.details.length > 0 ? (
+                        <ul className="text-xs text-gray-500 mt-2 list-disc list-inside space-y-0.5">
+                          {location.details.map((d, i) => (
+                            <li key={i}>{d}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <>
+                          {location.distanceToCBD && (
+                            <p className="text-xs text-gray-500 mt-2">
+                              Distance to CBD: {location.distanceToCBD}
+                            </p>
+                          )}
+                          {location.publicTransport && (
+                            <p className="text-xs text-gray-500">
+                              Public Transport: {location.publicTransport}
+                            </p>
+                          )}
+                        </>
                       )}
                       <a
                         href={`https://www.openstreetmap.org/?mlat=${location.coordinates[0]}&mlon=${location.coordinates[1]}&zoom=17`}

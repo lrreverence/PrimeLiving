@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Check, ChevronLeft, ChevronRight, Phone } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Carousel,
   CarouselContent,
@@ -59,21 +58,6 @@ const HeroSection = () => {
                 <p>Our thoughtfully designed apartments offer comfort,</p>
                 <p>convenience, and community.</p>
               </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-4 flex-wrap">
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 px-6 py-3 text-base">
-                View Apartments
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-              <Button
-                variant="outline"
-                className="border-border hover:bg-accent hover:text-accent-foreground px-6 py-3 text-base"
-              >
-                <Phone className="w-4 h-4 mr-2" />
-                Chat with Us
-              </Button>
             </div>
 
             {/* Features */}
