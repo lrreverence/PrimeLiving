@@ -19,7 +19,7 @@ import {
   FileText,
   CheckCircle,
   AlertTriangle,
-  DollarSign,
+  PhilippinePeso,
   Calendar as CalendarIcon
 } from 'lucide-react';
 import { useApartmentManagerData } from '@/components/apartment-manager/useApartmentManagerData';
@@ -986,8 +986,33 @@ const ApartmentManagerDashboard = () => {
     }
   }, [activeTab, notificationTab, apartmentManagerData]);
 
+  // Total Revenue for this branch: (units × monthly rent) per rent tier, summed
+  const totalRevenueForBranch = (units || []).reduce((sum, u) => sum + (parseFloat(u.monthly_rent) || 0), 0);
+  const revenueByRent = (units || []).reduce<Record<number, number>>((acc, u) => {
+    const rent = parseFloat(u.monthly_rent) || 0;
+    acc[rent] = (acc[rent] || 0) + 1;
+    return acc;
+  }, {});
+  const revenueFormulaParts = Object.entries(revenueByRent)
+    .filter(([, count]) => count > 0)
+    .sort(([a], [b]) => Number(b) - Number(a))
+    .map(([rent, count]) => `(${count} units × ₱${Number(rent).toLocaleString()} monthly rent)`);
+  const revenueFormula = revenueFormulaParts.length ? revenueFormulaParts.join(' + ') : 'No units';
+
+  const branchDisplayName = apartmentManagerData?.branch
+    ? apartmentManagerData.branch.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    : 'Branch';
+
   // Overview data
-  const overviewMetrics = [];
+  const overviewMetrics = [
+    {
+      title: `Total Revenue (${branchDisplayName})`,
+      value: `₱ ${totalRevenueForBranch.toLocaleString()}/monthly rent`,
+      icon: <PhilippinePeso className="w-6 h-6 text-green-600" />,
+      color: 'text-green-600',
+      subtitle: revenueFormula
+    }
+  ];
 
   // Generate report function
   const generateReport = () => {

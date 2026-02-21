@@ -20,6 +20,7 @@ interface OverviewTabProps {
     value: string;
     icon: React.ReactNode;
     color: string;
+    subtitle?: string;
   }>;
   quickActions: Array<{
     title: string;
@@ -54,6 +55,9 @@ export const OverviewTab = ({
                 <div>
                   <p className="text-sm font-medium text-gray-600">{metric.title}</p>
                   <p className="text-3xl font-bold text-gray-900">{metric.value}</p>
+                  {metric.subtitle && (
+                    <p className="text-xs text-muted-foreground mt-1">{metric.subtitle}</p>
+                  )}
                 </div>
                 <div className={`${metric.color} p-3 rounded-lg bg-gray-50`}>
                   {metric.icon}

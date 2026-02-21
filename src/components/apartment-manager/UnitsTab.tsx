@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Home, User, Calendar, DollarSign, Plus, Edit, Trash2 } from 'lucide-react';
+import { Home, User, Calendar, PhilippinePeso, Plus, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -384,7 +384,7 @@ export const UnitsTab = ({ units, unitsLoading, onUnitUpdate, apartmentManagerId
                             <span>Type: {unit.unit_type || 'N/A'}</span>
                           </div>
                           <div className="flex items-center space-x-2 text-sm text-gray-600">
-                            <DollarSign className="w-4 h-4" />
+                            <PhilippinePeso className="w-4 h-4" />
                             <span>Rent: ₱{parseFloat(unit.monthly_rent?.toString() || '0').toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           </div>
                           {tenant && (

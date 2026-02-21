@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -20,13 +20,12 @@ import {
   Trash2,
   Plus,
   Download,
-  Eye,
   CheckCircle,
   XCircle,
   AlertTriangle,
   Home,
   Calendar,
-  DollarSign,
+  PhilippinePeso,
   Mail,
   Phone
 } from 'lucide-react';
@@ -56,6 +55,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+
+const BRANCH_LABELS: Record<string, string> = {
+  cainta: 'Cainta Rizal',
+  sampaloc: 'Sampaloc Manila',
+  cubao: 'Cubao QC',
+};
 
 const SuperAdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -90,6 +95,9 @@ const SuperAdminDashboard = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editType, setEditType] = useState<'user' | 'apartment_manager' | 'unit' | null>(null);
+
+  // Tenant status update (for Tenants tab)
+  const [updatingStatusTenantId, setUpdatingStatusTenantId] = useState<number | null>(null);
 
   // Add apartment manager dialog states
   const [addApartmentManagerDialogOpen, setAddApartmentManagerDialogOpen] = useState(false);
@@ -229,12 +237,8 @@ const SuperAdminDashboard = () => {
         return contract && contract.status === 'active';
       }).length || 0;
 
-      const totalRevenue = payments?.reduce((sum, p) => {
-        if (p.status === 'confirmed' || p.status === 'completed' || p.status === 'paid') {
-          return sum + (parseFloat(p.amount) || 0);
-        }
-        return sum;
-      }, 0) || 0;
+      // Total revenue = sum of (units × monthly rent) across all units (same formula as per-branch)
+      const totalRevenue = units?.reduce((sum, u) => sum + (parseFloat(u.monthly_rent) || 0), 0) || 0;
 
       const pendingPayments = payments?.filter(p => 
         p.status === 'pending'
@@ -352,7 +356,45 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const handleDelete = async (item: any, type: 'tenant' | 'apartment_manager' | 'unit') => {
+  const handleTenantStatusChange = async (tenant: any, newStatus: string) => {
+    const contract = Array.isArray(tenant.contracts) ? tenant.contracts[0] : tenant.contracts;
+    if (!contract?.contract_id) {
+      toast({
+        title: "No contract",
+        description: "This tenant has no contract to update.",
+        variant: "destructive"
+      });
+      return;
+    }
+    try {
+      setUpdatingStatusTenantId(tenant.tenant_id);
+      const { error } = await supabase
+        .from('contracts')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('contract_id', contract.contract_id);
+      if (error) throw error;
+      const unitId = contract.unit_id;
+      if (unitId) {
+        const unitStatus = newStatus === 'active' ? 'occupied' : 'available';
+        await supabase
+          .from('units')
+          .update({ status: unitStatus, updated_at: new Date().toISOString() })
+          .eq('unit_id', unitId);
+      }
+      toast({ title: "Status Updated", description: "Tenant status has been updated." });
+      await fetchAllData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update status.",
+        variant: "destructive"
+      });
+    } finally {
+      setUpdatingStatusTenantId(null);
+    }
+  };
+
+  const handleDelete = async (item: any, type: 'apartment_manager' | 'unit') => {
     if (!confirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`)) {
       return;
     }
@@ -360,13 +402,7 @@ const SuperAdminDashboard = () => {
     try {
       let error;
       
-      if (type === 'tenant') {
-        const { error: deleteError } = await supabase
-          .from('tenants')
-          .delete()
-          .eq('tenant_id', item.tenant_id);
-        error = deleteError;
-      } else if (type === 'apartment_manager') {
+      if (type === 'apartment_manager') {
         const { error: deleteError } = await supabase
           .from('apartment_managers')
           .delete()
@@ -551,16 +587,6 @@ const SuperAdminDashboard = () => {
   };
 
   // Filter functions
-  const filteredUsers = allUsers.filter(user => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      user.email?.toLowerCase().includes(search) ||
-      user.name?.toLowerCase().includes(search) ||
-      user.role?.toLowerCase().includes(search)
-    );
-  });
-
   const filteredTenants = allTenants.filter(tenant => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
@@ -572,15 +598,51 @@ const SuperAdminDashboard = () => {
     );
   });
 
-  const filteredUnits = allUnits.filter(unit => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      unit.unit_number?.toLowerCase().includes(search) ||
-      unit.unit_type?.toLowerCase().includes(search) ||
-      unit.branch?.toLowerCase().includes(search)
-    );
-  });
+  // Demographics for system monitoring (by branch + overall distribution)
+  const demographics = useMemo(() => {
+    const branches = Array.from(new Set([
+      ...allTenants.map(t => t.branch).filter(Boolean),
+      ...allUnits.map(u => u.branch).filter(Boolean),
+      ...allApartmentManagers.map(m => m.branch).filter(Boolean),
+    ])) as string[];
+    const uniqueBranches = [...new Set(branches)].sort();
+
+    const byBranch = uniqueBranches.map(branch => {
+      const tenants = allTenants.filter(t => t.branch === branch).length;
+      const units = allUnits.filter(u => u.branch === branch);
+      const occupied = units.filter(u => {
+        const contract = Array.isArray(u.contracts) ? u.contracts[0] : u.contracts;
+        return contract && contract.status === 'active';
+      }).length;
+      const revenue = units.reduce((sum, u) => sum + (parseFloat(u.monthly_rent) || 0), 0);
+      const managers = allApartmentManagers.filter(m => m.branch === branch).length;
+      return {
+        branch,
+        label: BRANCH_LABELS[branch] || branch,
+        tenants,
+        units: units.length,
+        occupied,
+        vacant: units.length - occupied,
+        revenue,
+        managers,
+      };
+    });
+
+    const contractActive = allContracts.filter(c => c.status === 'active').length;
+    const contractInactive = allContracts.length - contractActive;
+    const paymentPending = allPayments.filter(p => p.status === 'pending').length;
+    const paymentConfirmed = allPayments.filter(p => p.status === 'confirmed').length;
+    const maintenancePending = allMaintenance.filter(m => m.status === 'pending').length;
+    const maintenanceInProgress = allMaintenance.filter(m => m.status === 'in_progress').length;
+    const maintenanceCompleted = allMaintenance.filter(m => m.status === 'completed').length;
+
+    return {
+      byBranch,
+      contracts: { active: contractActive, inactive: contractInactive, total: allContracts.length },
+      payments: { pending: paymentPending, confirmed: paymentConfirmed, total: allPayments.length },
+      maintenance: { pending: maintenancePending, inProgress: maintenanceInProgress, completed: maintenanceCompleted, total: allMaintenance.length },
+    };
+  }, [allTenants, allUnits, allApartmentManagers, allContracts, allPayments, allMaintenance]);
 
   if (isLoading) {
     return (
@@ -617,15 +679,10 @@ const SuperAdminDashboard = () => {
       {/* Navigation */}
       <nav className="bg-white border-b border-gray-200 px-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-8">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="tenants">Tenants</TabsTrigger>
             <TabsTrigger value="apartment_managers">Apartment Managers</TabsTrigger>
-            <TabsTrigger value="units">Units</TabsTrigger>
-            <TabsTrigger value="payments">Payments</TabsTrigger>
-            <TabsTrigger value="contracts">Contracts</TabsTrigger>
-            <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
           </TabsList>
         </Tabs>
       </nav>
@@ -673,12 +730,12 @@ const SuperAdminDashboard = () => {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <PhilippinePeso className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">₱{stats.totalRevenue.toLocaleString()}</div>
                   <p className="text-xs text-muted-foreground">
-                    {stats.pendingPayments} pending payments
+                    monthly rent (all units × rent)
                   </p>
                 </CardContent>
               </Card>
@@ -696,6 +753,83 @@ const SuperAdminDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {/* System Demographics - overall monitoring */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  System Demographics
+                </CardTitle>
+                <CardDescription>
+                  Branch-level and system-wide distribution for monitoring
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {demographics.byBranch.length > 0 ? (
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Branch</TableHead>
+                          <TableHead className="text-right">Tenants</TableHead>
+                          <TableHead className="text-right">Units</TableHead>
+                          <TableHead className="text-right">Occupied</TableHead>
+                          <TableHead className="text-right">Vacant</TableHead>
+                          <TableHead className="text-right">Revenue (₱/mo)</TableHead>
+                          <TableHead className="text-right">Managers</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {demographics.byBranch.map((row) => (
+                          <TableRow key={row.branch}>
+                            <TableCell className="font-medium">{row.label}</TableCell>
+                            <TableCell className="text-right">{row.tenants}</TableCell>
+                            <TableCell className="text-right">{row.units}</TableCell>
+                            <TableCell className="text-right">{row.occupied}</TableCell>
+                            <TableCell className="text-right">{row.vacant}</TableCell>
+                            <TableCell className="text-right">₱{row.revenue.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">{row.managers}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No branch data yet.</p>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="rounded-lg border bg-muted/40 p-4">
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Contracts</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="default">Active: {demographics.contracts.active}</Badge>
+                      <Badge variant="secondary">Inactive: {demographics.contracts.inactive}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Total: {demographics.contracts.total}</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/40 p-4">
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Payments</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="default">Confirmed: {demographics.payments.confirmed}</Badge>
+                      <Badge variant="secondary">Pending: {demographics.payments.pending}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Total: {demographics.payments.total}</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/40 p-4">
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Maintenance</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="default">Completed: {demographics.maintenance.completed}</Badge>
+                      <Badge variant="secondary">Pending: {demographics.maintenance.pending}</Badge>
+                      {demographics.maintenance.inProgress > 0 && (
+                        <Badge variant="outline">In progress: {demographics.maintenance.inProgress}</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Total: {demographics.maintenance.total}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
@@ -754,74 +888,6 @@ const SuperAdminDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* Users Tab */}
-          <TabsContent value="users" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">All Users</h2>
-              <div className="flex items-center space-x-2">
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Search users..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8 w-64"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>{user.email || 'N/A'}</TableCell>
-                        <TableCell>{user.name || 'N/A'}</TableCell>
-                        <TableCell>
-                          <Badge variant={user.role === 'super_admin' ? 'default' : 'secondary'}>
-                            {user.role}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="default" className="bg-green-500">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Active
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              if (user.apartment_managerData) {
-                                handleEdit(user.apartment_managerData, 'apartment_manager');
-                              }
-                            }}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           {/* Tenants Tab */}
           <TabsContent value="tenants" className="space-y-4">
             <div className="flex justify-between items-center">
@@ -849,13 +915,14 @@ const SuperAdminDashboard = () => {
                       <TableHead>Contact</TableHead>
                       <TableHead>Branch</TableHead>
                       <TableHead>Unit</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredTenants.map((tenant) => {
                       const contract = Array.isArray(tenant.contracts) ? tenant.contracts[0] : tenant.contracts;
                       const unit = contract?.units ? (Array.isArray(contract.units) ? contract.units[0] : contract.units) : null;
+                      const contractStatus = contract?.status || 'inactive';
                       return (
                         <TableRow key={tenant.tenant_id}>
                           <TableCell>{`${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() || 'N/A'}</TableCell>
@@ -864,15 +931,29 @@ const SuperAdminDashboard = () => {
                           <TableCell>{tenant.branch || 'N/A'}</TableCell>
                           <TableCell>{unit?.unit_number || 'N/A'}</TableCell>
                           <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(tenant, 'tenant')}
-                              >
-                                <Trash2 className="w-4 h-4 text-red-500" />
-                              </Button>
-                            </div>
+                            {contract ? (
+                              updatingStatusTenantId === tenant.tenant_id ? (
+                                <div className="flex items-center space-x-2">
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900" />
+                                  <span className="text-sm text-gray-500">Updating...</span>
+                                </div>
+                              ) : (
+                                <Select
+                                  value={contractStatus}
+                                  onValueChange={(value) => handleTenantStatusChange(tenant, value)}
+                                >
+                                  <SelectTrigger className="w-[120px] h-8">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="active">Active</SelectItem>
+                                    <SelectItem value="inactive">Inactive</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              )
+                            ) : (
+                              <Badge variant="secondary">No contract</Badge>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -932,217 +1013,6 @@ const SuperAdminDashboard = () => {
                         </TableCell>
                       </TableRow>
                     ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Units Tab */}
-          <TabsContent value="units" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">All Units</h2>
-              <div className="flex items-center space-x-2">
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Search units..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8 w-64"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Unit Number</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Monthly Rent</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Branch</TableHead>
-                      <TableHead>Tenant</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUnits.map((unit) => {
-                      const contract = Array.isArray(unit.contracts) ? unit.contracts[0] : unit.contracts;
-                      const tenant = contract?.tenants ? (Array.isArray(contract.tenants) ? contract.tenants[0] : contract.tenants) : null;
-                      const tenantName = tenant ? `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() : 'Vacant';
-                      return (
-                        <TableRow key={unit.unit_id}>
-                          <TableCell>{unit.unit_number || 'N/A'}</TableCell>
-                          <TableCell>{unit.unit_type || 'N/A'}</TableCell>
-                          <TableCell>₱{parseFloat(unit.monthly_rent || '0').toLocaleString()}</TableCell>
-                          <TableCell>
-                            <Badge variant={contract?.status === 'active' ? 'default' : 'secondary'}>
-                              {contract?.status || 'vacant'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{unit.branch || 'N/A'}</TableCell>
-                          <TableCell>{tenantName}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEdit(unit, 'unit')}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(unit, 'unit')}
-                              >
-                                <Trash2 className="w-4 h-4 text-red-500" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Payments Tab */}
-          <TabsContent value="payments" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">All Payments</h2>
-            </div>
-
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Tenant</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Method</TableHead>
-                      <TableHead>Transaction ID</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {allPayments.map((payment) => {
-                      const tenant = Array.isArray(payment.tenants) ? payment.tenants[0] : payment.tenants;
-                      const tenantName = tenant ? `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() : 'Unknown';
-                      return (
-                        <TableRow key={payment.payment_id}>
-                          <TableCell>{new Date(payment.payment_date).toLocaleDateString()}</TableCell>
-                          <TableCell>{tenantName}</TableCell>
-                          <TableCell>₱{parseFloat(payment.amount || '0').toLocaleString()}</TableCell>
-                          <TableCell>
-                            <Badge variant={payment.status === 'confirmed' ? 'default' : 'secondary'}>
-                              {payment.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{payment.payment_mode || 'N/A'}</TableCell>
-                          <TableCell>{payment.transaction_id || 'N/A'}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Contracts Tab */}
-          <TabsContent value="contracts" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">All Contracts</h2>
-            </div>
-
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Tenant</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Start Date</TableHead>
-                      <TableHead>End Date</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {allContracts.map((contract) => {
-                      const tenant = Array.isArray(contract.tenants) ? contract.tenants[0] : contract.tenants;
-                      const unit = Array.isArray(contract.units) ? contract.units[0] : contract.units;
-                      const tenantName = tenant ? `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() : 'Unknown';
-                      return (
-                        <TableRow key={contract.contract_id}>
-                          <TableCell>{tenantName}</TableCell>
-                          <TableCell>{unit?.unit_number || 'N/A'}</TableCell>
-                          <TableCell>{new Date(contract.start_date).toLocaleDateString()}</TableCell>
-                          <TableCell>{new Date(contract.end_date).toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            <Badge variant={contract.status === 'active' ? 'default' : 'secondary'}>
-                              {contract.status}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Maintenance Tab */}
-          <TabsContent value="maintenance" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">All Maintenance Requests</h2>
-            </div>
-
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Tenant</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Created</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {allMaintenance.map((request) => {
-                      const tenant = Array.isArray(request.tenants) ? request.tenants[0] : request.tenants;
-                      const unit = Array.isArray(request.units) ? request.units[0] : request.units;
-                      const tenantName = tenant ? `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() : 'Unknown';
-                      return (
-                        <TableRow key={request.request_id}>
-                          <TableCell>{request.description}</TableCell>
-                          <TableCell>{tenantName}</TableCell>
-                          <TableCell>{unit?.unit_number || 'N/A'}</TableCell>
-                          <TableCell>
-                            <Badge variant={request.priority === 'high' ? 'destructive' : 'secondary'}>
-                              {request.priority}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={request.status === 'completed' ? 'default' : 'secondary'}>
-                              {request.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{request.created_date ? new Date(request.created_date).toLocaleDateString() : 'N/A'}</TableCell>
-                        </TableRow>
-                      );
-                    })}
                   </TableBody>
                 </Table>
               </CardContent>
