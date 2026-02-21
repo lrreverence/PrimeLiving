@@ -26,7 +26,9 @@ import {
   Calendar,
   PhilippinePeso,
   Mail,
-  Phone
+  Phone,
+  Clock,
+  FileText
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -101,6 +103,11 @@ const SuperAdminDashboard = () => {
 
   // Tenant status update (for Tenants tab)
   const [updatingStatusTenantId, setUpdatingStatusTenantId] = useState<number | null>(null);
+
+  // Maintenance tab: filter and detail modal
+  const [maintenanceFilter, setMaintenanceFilter] = useState<string>('all');
+  const [selectedMaintenanceRequest, setSelectedMaintenanceRequest] = useState<any | null>(null);
+  const [maintenanceRequestModalOpen, setMaintenanceRequestModalOpen] = useState(false);
 
   // Add apartment manager dialog states
   const [addApartmentManagerDialogOpen, setAddApartmentManagerDialogOpen] = useState(false);
@@ -569,6 +576,29 @@ const SuperAdminDashboard = () => {
     };
   }, [allTenants, allUnits, allApartmentManagers, allContracts, allPayments, allMaintenance]);
 
+  // Formatted and filtered maintenance requests for the Maintenance tab
+  const formattedMaintenanceRequests = useMemo(() => {
+    const normalized = allMaintenance.map((request) => {
+      const tenant = Array.isArray(request.tenants) ? request.tenants[0] : request.tenants;
+      const unit = Array.isArray(request.units) ? request.units[0] : request.units;
+      const tenantName = tenant ? `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() : 'Unknown';
+      return {
+        ...request,
+        title: request.description || 'Maintenance Request',
+        unit_number: unit?.unit_number || 'N/A',
+        tenant_name: tenantName,
+      };
+    });
+    if (maintenanceFilter === 'all') return normalized;
+    return normalized.filter((r) => {
+      const s = (r.status || '').toLowerCase();
+      if (maintenanceFilter === 'pending') return s === 'pending';
+      if (maintenanceFilter === 'in_progress') return s === 'in_progress' || s === 'in progress';
+      if (maintenanceFilter === 'completed') return s === 'completed' || s === 'resolved';
+      return true;
+    });
+  }, [allMaintenance, maintenanceFilter]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -604,10 +634,11 @@ const SuperAdminDashboard = () => {
       {/* Navigation */}
       <nav className="bg-white border-b border-gray-200 px-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="tenants">Tenants</TabsTrigger>
             <TabsTrigger value="apartment_managers">Apartment Managers</TabsTrigger>
+            <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
           </TabsList>
         </Tabs>
       </nav>
@@ -912,6 +943,135 @@ const SuperAdminDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* Maintenance Tab */}
+          <TabsContent value="maintenance" className="space-y-6">
+            <h2 className="text-2xl font-bold">Maintenance Requests</h2>
+            <p className="text-muted-foreground">View all reported maintenance requests and how many have been fixed.</p>
+
+            {/* Summary cards: reported (total) and fixed (completed) */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Reported</CardTitle>
+                  <Wrench className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.totalMaintenance}</div>
+                  <p className="text-xs text-muted-foreground">All maintenance requests</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Fixed / Completed</CardTitle>
+                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{demographics.maintenance.completed}</div>
+                  <p className="text-xs text-muted-foreground">Resolved requests</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Pending</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{demographics.maintenance.pending}</div>
+                  <p className="text-xs text-muted-foreground">Awaiting action</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{demographics.maintenance.inProgress}</div>
+                  <p className="text-xs text-muted-foreground">Being worked on</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Filter:</span>
+              <Select value={maintenanceFilter} onValueChange={setMaintenanceFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All requests</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="in_progress">In progress</SelectItem>
+                  <SelectItem value="completed">Completed / Fixed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Full list of maintenance requests */}
+            <Card>
+              <CardHeader>
+                <CardTitle>All Maintenance Requests</CardTitle>
+                <CardDescription>Click a row to view full details</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                {formattedMaintenanceRequests.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">No maintenance requests match the selected filter.</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Unit</TableHead>
+                        <TableHead>Tenant</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Reported</TableHead>
+                        <TableHead>Fixed</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {formattedMaintenanceRequests.map((request) => (
+                        <TableRow
+                          key={request.request_id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => {
+                            setSelectedMaintenanceRequest(request);
+                            setMaintenanceRequestModalOpen(true);
+                          }}
+                        >
+                          <TableCell className="font-medium max-w-[200px] truncate" title={request.description}>
+                            {request.title || request.description || '—'}
+                          </TableCell>
+                          <TableCell>{request.unit_number}</TableCell>
+                          <TableCell>{request.tenant_name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">{request.priority || 'medium'}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={request.status === 'completed' ? 'default' : 'secondary'}>
+                              {request.status || 'pending'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {request.created_date || request.created_at
+                              ? new Date(request.created_date || request.created_at).toLocaleDateString()
+                              : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {request.resolved_date
+                              ? new Date(request.resolved_date).toLocaleDateString()
+                              : '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Tenants Tab */}
@@ -1243,6 +1403,105 @@ const SuperAdminDashboard = () => {
             </Button>
             <Button onClick={handleSaveEdit}>Save Changes</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Maintenance Request Detail Modal (read-only for super admin) */}
+      <Dialog open={maintenanceRequestModalOpen} onOpenChange={(open) => { setMaintenanceRequestModalOpen(open); if (!open) setSelectedMaintenanceRequest(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 p-6 pb-4 border-b">
+            <DialogTitle className="text-2xl font-bold">Maintenance Request Details</DialogTitle>
+            <DialogDescription>View full details of this maintenance request</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto p-6">
+            {selectedMaintenanceRequest && (
+              <div className="space-y-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                      {selectedMaintenanceRequest.title || selectedMaintenanceRequest.description || 'Maintenance Request'}
+                    </h3>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="outline" className="capitalize">{selectedMaintenanceRequest.priority || 'medium'}</Badge>
+                      <Badge variant={selectedMaintenanceRequest.status === 'completed' ? 'default' : 'secondary'}>
+                        {selectedMaintenanceRequest.status || 'pending'}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center space-x-2">
+                      <FileText className="w-5 h-5" />
+                      <span>Description</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-700 whitespace-pre-wrap">{selectedMaintenanceRequest.description || '—'}</p>
+                  </CardContent>
+                </Card>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-sm text-gray-600">Unit</p>
+                      <p className="font-medium text-gray-900">{selectedMaintenanceRequest.unit_number || 'N/A'}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-sm text-gray-600">Tenant</p>
+                      <p className="font-medium text-gray-900">{selectedMaintenanceRequest.tenant_name || 'N/A'}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-sm text-gray-600">Reported</p>
+                      <p className="font-medium text-gray-900">
+                        {selectedMaintenanceRequest.created_date || selectedMaintenanceRequest.created_at
+                          ? new Date(selectedMaintenanceRequest.created_date || selectedMaintenanceRequest.created_at).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : '—'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  {selectedMaintenanceRequest.resolved_date && (
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-sm text-gray-600">Fixed / Resolved</p>
+                        <p className="font-medium text-gray-900">
+                          {new Date(selectedMaintenanceRequest.resolved_date).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Request ID</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm font-mono text-gray-700">#{selectedMaintenanceRequest.request_id}</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
+          <div className="flex-shrink-0 p-6 border-t flex justify-end">
+            <Button variant="outline" onClick={() => { setMaintenanceRequestModalOpen(false); setSelectedMaintenanceRequest(null); }}>
+              Close
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
