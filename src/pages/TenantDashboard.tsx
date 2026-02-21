@@ -90,7 +90,6 @@ import {
   UserCheck,
   Download,
   FileText as DocumentIcon,
-  ClipboardList,
   Users,
   Settings,
   TrendingUp,
@@ -479,45 +478,6 @@ const TenantDashboard = () => {
     }
   };
 
-  const quickActions = [
-    {
-      id: 'pay-rent',
-      title: 'Pay Rent',
-      icon: <QrCode className="w-6 h-6" />,
-      description: 'Display QR code for payment'
-    },
-    {
-      id: 'report-issue',
-      title: 'Report Issue',
-      icon: <Wrench className="w-6 h-6" />,
-      description: 'Submit maintenance request'
-    },
-    {
-      id: 'payment-history',
-      title: 'Transaction History',
-      icon: <CreditCard className="w-6 h-6" />,
-      description: 'View past payments'
-    },
-    {
-      id: 'view-alerts',
-      title: 'View Alerts',
-      icon: <Bell className="w-6 h-6" />,
-      description: 'Check notifications'
-    },
-    {
-      id: 'view-profile',
-      title: 'My Profile',
-      icon: <User className="w-6 h-6" />,
-      description: 'Update personal info'
-    },
-    {
-      id: 'maintenance-status',
-      title: 'Maintenance Status',
-      icon: <Settings className="w-6 h-6" />,
-      description: 'Track request status'
-    }
-  ];
-
   const handleQuickAction = (actionId: string) => {
     switch (actionId) {
       case 'pay-rent':
@@ -649,35 +609,6 @@ const TenantDashboard = () => {
       daysUntilDue: daysUntilDue
     };
   };
-
-  // Calculate current balance
-  const calculateCurrentBalance = () => {
-    if (!contractData?.start_date || !contractData?.units?.monthly_rent) return 0;
-    
-    const startDate = new Date(contractData.start_date);
-    const today = new Date();
-    const monthlyRent = contractData.units.monthly_rent;
-    
-    // Calculate number of full months since contract start
-    // This counts months that should have been fully paid
-    let monthsSinceStart = (today.getFullYear() - startDate.getFullYear()) * 12 + 
-                            (today.getMonth() - startDate.getMonth());
-    
-    // If we're still in the first month, no payment is due yet
-    if (monthsSinceStart < 0) monthsSinceStart = 0;
-    
-    // Expected total payments (full months since start * monthly rent)
-    const expectedTotal = monthsSinceStart * monthlyRent;
-    
-    // Calculate total confirmed payments
-    const confirmedPayments = payments
-      .filter(p => p.status === 'confirmed' || p.status === 'completed' || p.status === 'paid')
-      .reduce((sum, p) => sum + parseFloat(p.amount.toString()), 0);
-    
-    // Balance = Expected - Paid (positive means owed, negative means overpaid)
-    return expectedTotal - confirmedPayments;
-  };
-
 
   // Filter payments based on year and status
   const filteredPayments = payments.filter((payment) => {
@@ -1668,32 +1599,6 @@ const TenantDashboard = () => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-600">Current Balance</p>
-                        {(() => {
-                          const balance = calculateCurrentBalance();
-                          const isPositive = balance >= 0;
-                          return (
-                            <p className={`text-2xl font-bold ${isPositive ? 'text-red-600' : 'text-green-600'}`}>
-                              {isPositive ? '' : '-'}₱{Math.abs(balance).toLocaleString()}
-                            </p>
-                          );
-                        })()}
-                      </div>
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                        calculateCurrentBalance() >= 0 ? 'bg-red-100' : 'bg-green-100'
-                      }`}>
-                        <CheckCircle className={`w-6 h-6 ${
-                          calculateCurrentBalance() >= 0 ? 'text-red-600' : 'text-green-600'
-                        }`} />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
                         <p className="text-sm font-medium text-gray-600">Maintenance Requests</p>
                         <p className="text-2xl font-bold text-gray-900">{maintenanceStats.total}</p>
                       </div>
@@ -1719,199 +1624,6 @@ const TenantDashboard = () => {
                 </Card>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Contract Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Contract Information</CardTitle>
-                    <p className="text-sm text-gray-600">Your current rental agreement details</p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Contract Period:</span>
-                        <span className="font-medium">
-                          {contractData?.start_date && contractData?.end_date
-                            ? `${new Date(contractData.start_date).toLocaleDateString()} to ${new Date(contractData.end_date).toLocaleDateString()}`
-                            : 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Monthly Rent:</span>
-                        <span className="font-medium">
-                          ₱{contractData?.units?.monthly_rent?.toLocaleString() || '15,000'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Payment Due Date:</span>
-                        <span className="font-medium">15th of each month</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Security Deposit:</span>
-                        <span className="font-medium">₱30,000</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Unit Number:</span>
-                        <span className="font-medium">
-                          {contractData?.units?.unit_number || 'Not assigned'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Branch:</span>
-                        <span className="font-medium">
-                          {loading ? 'Loading...' : tenantData?.branch || 'Unknown Branch'}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Quick Actions */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Quick Actions</CardTitle>
-                    <p className="text-sm text-gray-600">Common tasks and shortcuts • Use Ctrl+1-6 for quick access</p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {quickActions.map((action) => (
-                        <Button
-                          key={action.id}
-                          variant="outline"
-                          className="flex flex-col items-center justify-center h-32 space-y-2 hover:bg-blue-50 hover:border-blue-200 transition-colors relative"
-                          onClick={() => handleQuickAction(action.id)}
-                          title={`${action.description} (Ctrl+${quickActions.indexOf(action) + 1})`}
-                        >
-                          <div className="absolute top-2 right-2 text-xs text-gray-400 bg-gray-100 px-1 rounded">
-                            ⌘{quickActions.indexOf(action) + 1}
-                          </div>
-                          <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
-                            {action.icon}
-                          </div>
-                          <div className="text-center">
-                            <span className="text-sm font-medium block">{action.title}</span>
-                            <span className="text-xs text-gray-500">{action.description}</span>
-                          </div>
-                        </Button>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* About Us Section */}
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">About Us</h3>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Business Permit</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">Official business permit documentation</p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                      <FileText className="w-16 h-16 text-gray-400 mb-4" />
-                      <div className="text-center space-y-2">
-                        <h4 className="font-semibold text-gray-900">Prime Living Business Permit</h4>
-                        <p className="text-sm text-gray-600">Business Permit No. 2025-001234</p>
-                        <p className="text-sm text-gray-600">Issued: January 1, 2025</p>
-                        <p className="text-sm text-gray-600">Valid Until: December 31, 2025</p>
-                        <div className="mt-4 w-full max-w-md h-64 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center">
-                          <div className="text-center p-4">
-                            <Building2 className="w-20 h-20 text-gray-300 mx-auto mb-4" />
-                            <p className="text-lg font-bold text-gray-700 mb-2">BUSINESS PERMIT</p>
-                            <p className="text-sm text-gray-600 mb-1">Prime Living Properties</p>
-                            <p className="text-xs text-gray-500">123 Main Street, Metro Manila</p>
-                            <p className="text-xs text-gray-500 mt-2">Permit No: 2025-001234</p>
-                            <p className="text-xs text-gray-500">Valid: Jan 1, 2025 - Dec 31, 2025</p>
-                          </div>
-                        </div>
-                        <Button 
-                          variant="outline" 
-                          className="mt-4"
-                          onClick={() => {
-                            // Create a simple PDF-like view
-                            const printWindow = window.open('', '_blank');
-                            if (printWindow) {
-                              printWindow.document.write(`
-                                <!DOCTYPE html>
-                                <html>
-                                  <head>
-                                    <title>Business Permit - Prime Living</title>
-                                    <style>
-                                      body {
-                                        font-family: Arial, sans-serif;
-                                        padding: 40px;
-                                        max-width: 800px;
-                                        margin: 0 auto;
-                                      }
-                                      .header {
-                                        text-align: center;
-                                        border-bottom: 3px solid #000;
-                                        padding-bottom: 20px;
-                                        margin-bottom: 30px;
-                                      }
-                                      .content {
-                                        line-height: 1.8;
-                                      }
-                                      .info-row {
-                                        margin: 15px 0;
-                                        padding: 10px;
-                                        background: #f5f5f5;
-                                        border-left: 4px solid #000;
-                                      }
-                                      .label {
-                                        font-weight: bold;
-                                        display: inline-block;
-                                        width: 200px;
-                                      }
-                                    </style>
-                                  </head>
-                                  <body>
-                                    <div class="header">
-                                      <h1>BUSINESS PERMIT</h1>
-                                      <h2>Republic of the Philippines</h2>
-                                    </div>
-                                    <div class="content">
-                                      <div class="info-row">
-                                        <span class="label">Business Name:</span> Prime Living Properties
-                                      </div>
-                                      <div class="info-row">
-                                        <span class="label">Business Address:</span> 123 Main Street, Metro Manila
-                                      </div>
-                                      <div class="info-row">
-                                        <span class="label">Permit Number:</span> 2025-001234
-                                      </div>
-                                      <div class="info-row">
-                                        <span class="label">Issued Date:</span> January 1, 2025
-                                      </div>
-                                      <div class="info-row">
-                                        <span class="label">Valid Until:</span> December 31, 2025
-                                      </div>
-                                      <div class="info-row">
-                                        <span class="label">Business Type:</span> Real Estate Rental Services
-                                      </div>
-                                      <div style="margin-top: 40px; text-align: center; border-top: 2px solid #ccc; padding-top: 20px;">
-                                        <p>This is to certify that the above-named business is authorized to operate in accordance with local business regulations.</p>
-                                        <p style="margin-top: 30px;"><strong>Issued by:</strong> Local Government Unit</p>
-                                        <p><strong>Date:</strong> January 1, 2025</p>
-                                      </div>
-                                    </div>
-                                  </body>
-                                </html>
-                              `);
-                              printWindow.document.close();
-                              printWindow.print();
-                            }
-                          }}
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          View/Download Permit
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
             </div>
           </TabsContent>
 
@@ -2070,6 +1782,23 @@ const TenantDashboard = () => {
                                 </div>
                               </div>
                             )}
+
+                            <div className="flex items-center justify-between pt-4 border-t">
+                              <div className="flex items-center space-x-3">
+                                <Lock className="w-5 h-5 text-gray-400" />
+                                <div>
+                                  <p className="text-sm text-gray-600">Password</p>
+                                  <p className="font-medium text-gray-900">Change your account password</p>
+                                </div>
+                              </div>
+                              <Button
+                                onClick={() => setChangePasswordDialogOpen(true)}
+                                variant="outline"
+                                size="sm"
+                              >
+                                Change Password
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </CardContent>
@@ -2114,108 +1843,6 @@ const TenantDashboard = () => {
                       </CardContent>
                     </Card>
 
-                    {/* Occupation Information */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Occupation</CardTitle>
-                        <p className="text-sm text-gray-600 mt-1">Your professional information</p>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="flex items-center space-x-3">
-                          <UserCheck className="w-5 h-5 text-gray-400" />
-                          <div>
-                            <p className="text-sm text-gray-600">Job Title</p>
-                            <p className="font-medium text-gray-900">
-                              {tenantData.occupation || 'Not provided'}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-3">
-                          <Building2 className="w-5 h-5 text-gray-400" />
-                          <div>
-                            <p className="text-sm text-gray-600">Company</p>
-                            <p className="font-medium text-gray-900">
-                              {tenantData.company || 'Not provided'}
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* Rental Information */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Rental Information</CardTitle>
-                        <p className="text-sm text-gray-600 mt-1">Your unit and lease details</p>
-                      </CardHeader>
-                      <CardContent className="space-y-6">
-                        {contractData ? (
-                          <div className="space-y-4">
-                            <div className="flex items-center space-x-3">
-                              <Home className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="text-sm text-gray-600">Unit Number</p>
-                                <p className="font-medium text-gray-900">{contractData.units?.unit_number || 'N/A'}</p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center space-x-3">
-                              <Building2 className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="text-sm text-gray-600">Unit Type</p>
-                                <p className="font-medium text-gray-900">{contractData.units?.unit_type || 'N/A'}</p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center space-x-3">
-                              <PhilippinePeso className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="text-sm text-gray-600">Monthly Rent</p>
-                                <p className="font-medium text-gray-900">
-                                  ₱{contractData.units?.monthly_rent?.toLocaleString() || 'N/A'}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center space-x-3">
-                              <Calendar className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="text-sm text-gray-600">Contract Start</p>
-                                <p className="font-medium text-gray-900">
-                                  {new Date(contractData.start_date).toLocaleDateString()}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center space-x-3">
-                              <Calendar className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="text-sm text-gray-600">Contract End</p>
-                                <p className="font-medium text-gray-900">
-                                  {new Date(contractData.end_date).toLocaleDateString()}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center space-x-3">
-                              <CheckCircle className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="text-sm text-gray-600">Contract Status</p>
-                                <Badge className={contractData.status === 'active' ? 'bg-green-600' : 'bg-gray-600'}>
-                                  {contractData.status}
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-center py-8">
-                            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-600">No active contract found</p>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
                   </div>
                 </>
               )}
@@ -2257,102 +1884,10 @@ const TenantDashboard = () => {
                     </CardContent>
                   </Card>
 
-                  {/* Property Rules */}
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-start space-x-4">
-                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                          <FileText className="w-6 h-6 text-green-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900 mb-1">Property Rules</h4>
-                          <p className="text-sm text-gray-600 mb-3">Building rules, regulations, and community guidelines</p>
-                          <div className="flex items-center justify-between">
-                            <Badge variant="secondary" className="bg-gray-100 text-gray-700">PDF</Badge>
-                            <Button 
-                              size="sm" 
-                              className="flex items-center space-x-2"
-                              onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = '/documents/property-rules.pdf';
-                                link.download = 'property-rules.pdf';
-                                link.click();
-                              }}
-                            >
-                              <Download className="w-4 h-4" />
-                              <span>Download Rules</span>
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Move-in Checklist */}
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-start space-x-4">
-                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <ClipboardList className="w-6 h-6 text-purple-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900 mb-1">Move-in Checklist</h4>
-                          <p className="text-sm text-gray-600 mb-3">Property condition report and inventory checklist</p>
-                          <div className="flex items-center justify-between">
-                            <Badge variant="secondary" className="bg-gray-100 text-gray-700">PDF</Badge>
-                            <Button 
-                              size="sm" 
-                              className="flex items-center space-x-2"
-                              onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = '/documents/move-in-checklist.pdf';
-                                link.download = 'move-in-checklist.pdf';
-                                link.click();
-                              }}
-                            >
-                              <Download className="w-4 h-4" />
-                              <span>Download Checklist</span>
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Emergency Contacts */}
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-start space-x-4">
-                        <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                          <Users className="w-6 h-6 text-orange-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900 mb-1">Philippine Emergency Contacts</h4>
-                          <p className="text-sm text-gray-600 mb-3">Important contact numbers for emergencies and maintenance in the Philippines</p>
-                          <div className="flex items-center justify-between">
-                            <Badge variant="secondary" className="bg-gray-100 text-gray-700">PDF</Badge>
-                            <Button 
-                              size="sm" 
-                              className="flex items-center space-x-2"
-                              onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = '/documents/philippine-emergency-contacts.pdf';
-                                link.download = 'philippine-emergency-contacts.pdf';
-                                link.click();
-                              }}
-                            >
-                              <Download className="w-4 h-4" />
-                              <span>Download Contacts</span>
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
                 </div>
               </div>
 
-              {/* Account Settings Section */}
+              {/* Account Settings Section - commented out
               <div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Account Settings</h3>
                 <p className="text-gray-600 mb-6">Manage your account preferences and notifications</p>
@@ -2360,7 +1895,6 @@ const TenantDashboard = () => {
                 <Card>
                   <CardContent className="p-6">
                     <div className="space-y-6">
-                      {/* Email Notifications */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <Mail className="w-5 h-5 text-gray-400" />
@@ -2372,7 +1906,6 @@ const TenantDashboard = () => {
                         <Badge className="bg-gray-800 text-white">Enabled</Badge>
                       </div>
 
-                      {/* SMS Notifications */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <Phone className="w-5 h-5 text-gray-400" />
@@ -2384,7 +1917,6 @@ const TenantDashboard = () => {
                         <Badge className="bg-gray-800 text-white">Enabled</Badge>
                       </div>
 
-                      {/* Maintenance Updates */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <Wrench className="w-5 h-5 text-gray-400" />
@@ -2396,7 +1928,6 @@ const TenantDashboard = () => {
                         <Badge className="bg-gray-800 text-white">Enabled</Badge>
                       </div>
 
-                      {/* Change Password */}
                       <div className="flex items-center justify-between pt-4 border-t">
                         <div className="flex items-center space-x-3">
                           <Lock className="w-5 h-5 text-gray-400" />
@@ -2417,6 +1948,7 @@ const TenantDashboard = () => {
                   </CardContent>
                 </Card>
               </div>
+              */}
             </div>
           </TabsContent>
 
@@ -2431,26 +1963,7 @@ const TenantDashboard = () => {
               </div>
 
               {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600">Pending Payments</p>
-                        <p className="text-2xl font-bold text-yellow-600">
-                          ₱{payments
-                            .filter(p => p.status === 'pending')
-                            .reduce((sum, p) => sum + parseFloat(p.amount), 0)
-                            .toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                        <Clock className="w-6 h-6 text-yellow-600" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
                 <Card>
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
@@ -2503,26 +2016,6 @@ const TenantDashboard = () => {
                       </div>
                       <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                         <TrendingUp className="w-6 h-6 text-purple-600" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600">Payment Status</p>
-                        <Badge className={`mt-1 ${
-                          payments.filter(p => p.status === 'pending').length > 0
-                            ? 'bg-yellow-600 text-white'
-                            : 'bg-green-600 text-white'
-                        }`}>
-                          {payments.filter(p => p.status === 'pending').length > 0 ? 'pending' : 'current'}
-                        </Badge>
-                      </div>
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                        <CheckCircle className="w-6 h-6 text-green-600" />
                       </div>
                     </div>
                   </CardContent>
