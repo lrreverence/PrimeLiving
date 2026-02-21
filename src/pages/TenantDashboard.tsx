@@ -135,7 +135,6 @@ const TenantDashboard = () => {
   const [paymentFor, setPaymentFor] = useState('Monthly Rent');
   const [paymentMethod, setPaymentMethod] = useState('GCash');
   const [paymentAmount, setPaymentAmount] = useState(15000);
-  const [paymentOption, setPaymentOption] = useState('full');
   const [qrGenerated, setQrGenerated] = useState(false);
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [payments, setPayments] = useState<any[]>([]);
@@ -1371,9 +1370,8 @@ const TenantDashboard = () => {
     const unread = notifications.filter(n => n.status === 'unread').length;
     const payment = notifications.filter(n => n.notification_type === 'payment').length;
     const maintenance = notifications.filter(n => n.notification_type === 'maintenance').length;
-    const general = notifications.filter(n => n.notification_type === 'general').length;
 
-    return { total, unread, payment, maintenance, general };
+    return { total, unread, payment, maintenance };
   };
 
   const getNotificationIcon = (type: string) => {
@@ -1531,8 +1529,8 @@ const TenantDashboard = () => {
               <TabsList className="grid w-full grid-cols-6 h-auto">
                 <TabsTrigger value="overview" className="py-3">Overview</TabsTrigger>
                 <TabsTrigger value="profile" className="py-3">Profile</TabsTrigger>
-                <TabsTrigger value="payments" className="py-3">Payments</TabsTrigger>
-                <TabsTrigger value="qr-pay" className="py-3">QR Pay</TabsTrigger>
+                <TabsTrigger value="payments" className="py-3">Transaction</TabsTrigger>
+                <TabsTrigger value="qr-pay" className="py-3">Payments</TabsTrigger>
                 <TabsTrigger value="maintenance" className="py-3">Maintenance</TabsTrigger>
                 <TabsTrigger value="notifications" className="py-3">Notifications</TabsTrigger>
               </TabsList>
@@ -1807,7 +1805,7 @@ const TenantDashboard = () => {
                     {/* Emergency Contact Information */}
                     <Card>
                       <CardHeader>
-                        <CardTitle>Emergency Contact (Philippines)</CardTitle>
+                        <CardTitle>Emergency Contact</CardTitle>
                         <p className="text-sm text-gray-600 mt-1">Your emergency contact information</p>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -2122,53 +2120,6 @@ const TenantDashboard = () => {
                 </Card>
               </div>
 
-              {/* Upcoming Payments */}
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Upcoming Payments</h4>
-                  <p className="text-gray-600 mb-6">Schedule and reminders for future payments</p>
-
-                  <div className="space-y-4">
-                    <Card className="border-yellow-200 bg-yellow-50">
-                      <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                              <Calendar className="w-6 h-6 text-yellow-600" />
-                            </div>
-                            <div>
-                              <h5 className="font-semibold text-gray-900">September 2025 Rent</h5>
-                              <p className="text-sm text-gray-600">Due: 2025-09-15</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-2xl font-bold text-gray-900">₱15,000</p>
-                            <p className="text-sm text-red-600">-350 days left</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <Calendar className="w-6 h-6 text-blue-600" />
-                            </div>
-                            <div>
-                              <h5 className="font-semibold text-gray-900">October 2025 Rent</h5>
-                              <p className="text-sm text-gray-600">Due: 2025-10-15</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-2xl font-bold text-gray-900">₱15,000</p>
-                            <p className="text-sm text-gray-600">-320 days</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
             </div>
           </TabsContent>
 
@@ -2177,7 +2128,7 @@ const TenantDashboard = () => {
               {/* QR Pay Header */}
               <div>
                 <h2 className="text-3xl font-bold text-gray-900">QR Code Payment</h2>
-                <p className="text-gray-600 mt-1">Pay your rent conveniently using GCash or PayMaya</p>
+                <p className="text-gray-600 mt-1">Pay your rent conveniently using GCash</p>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -2185,7 +2136,7 @@ const TenantDashboard = () => {
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-xl font-semibold text-gray-900">Payment Details</CardTitle>
-                    <p className="text-sm text-gray-600">Configure your payment amount and method</p>
+                    <p className="text-sm text-gray-600">Configure your payment amount</p>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {/* Payment For */}
@@ -2205,33 +2156,6 @@ const TenantDashboard = () => {
                       </Select>
                     </div>
 
-                    {/* Payment Method */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id="gcash"
-                            checked={paymentMethod === 'GCash'}
-                            onChange={() => setPaymentMethod('GCash')}
-                            className="w-4 h-4 text-blue-600"
-                          />
-                          <label htmlFor="gcash" className="text-sm font-medium">GCash</label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id="paymaya"
-                            checked={paymentMethod === 'PayMaya'}
-                            onChange={() => setPaymentMethod('PayMaya')}
-                            className="w-4 h-4 text-blue-600"
-                          />
-                          <label htmlFor="paymaya" className="text-sm font-medium">PayMaya</label>
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Amount */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₱)</label>
@@ -2242,23 +2166,6 @@ const TenantDashboard = () => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="Enter amount"
                       />
-                    </div>
-
-                    {/* Payment Options */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-3">Payment Options</label>
-                      <div className="space-y-3">
-                        <Button
-                          variant={paymentOption === 'full' ? 'default' : 'outline'}
-                          onClick={() => {
-                            setPaymentOption('full');
-                            setPaymentAmount(15000);
-                          }}
-                          className="w-full justify-start"
-                        >
-                          Full Rent (₱15,000)
-                        </Button>
-                      </div>
                     </div>
 
                     {/* Payment Summary */}
@@ -2661,7 +2568,7 @@ const TenantDashboard = () => {
                 {/* Emergency Contacts */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-xl font-semibold text-gray-900">Philippine Emergency Contacts</CardTitle>
+                    <CardTitle className="text-xl font-semibold text-gray-900">Emergency Contacts</CardTitle>
                     <p className="text-sm text-gray-600">For urgent issues that need immediate attention</p>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -2725,8 +2632,8 @@ const TenantDashboard = () => {
                 {/* Maintenance Tips */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-xl font-semibold text-gray-900">Philippine Maintenance Tips</CardTitle>
-                    <p className="text-sm text-gray-600">Prevent common issues with these simple tips for Philippine living</p>
+                    <CardTitle className="text-xl font-semibold text-gray-900">Maintenance Tips</CardTitle>
+                    <p className="text-sm text-gray-600">Prevent common issues with these simple tips</p>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2805,13 +2712,6 @@ const TenantDashboard = () => {
                     className="rounded-full"
                   >
                     Maintenance ({getNotificationCounts().maintenance})
-                  </Button>
-                  <Button
-                    variant={notificationFilter === 'general' ? 'default' : 'outline'}
-                    onClick={() => setNotificationFilter('general')}
-                    className="rounded-full"
-                  >
-                    General ({getNotificationCounts().general})
                   </Button>
                   <Button
                     variant={notificationFilter === 'settings' ? 'default' : 'outline'}
@@ -2942,20 +2842,6 @@ const TenantDashboard = () => {
                     </CardContent>
                   </Card>
 
-                  {/* Notification Timing */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Notification Timing</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2 text-sm text-gray-600">
-                        <li>• Payment reminders: 7, 3, and 1 day before due date</li>
-                        <li>• Maintenance updates: Immediate when status changes</li>
-                        <li>• General announcements: As needed during business hours</li>
-                        <li>• Emergency alerts: Immediate, any time</li>
-                      </ul>
-                    </CardContent>
-                  </Card>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -3263,7 +3149,7 @@ const TenantDashboard = () => {
 
             {/* Emergency Contact Section */}
             <div className="space-y-4 border-t pt-4">
-              <h3 className="text-lg font-medium">Emergency Contact (Philippines)</h3>
+              <h3 className="text-lg font-medium">Emergency Contact</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="emergency_contact_name">Contact Name</Label>
